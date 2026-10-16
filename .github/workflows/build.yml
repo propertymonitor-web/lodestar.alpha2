@@ -1,0 +1,130 @@
+name: Build LODESTAR firmware
+
+run-name: "LODESTAR: ${{ inputs.line1 }} / ${{ inputs.line2 }} / ${{ inputs.line3 }} (${{ inputs.env }})"
+
+on:
+  workflow_dispatch:
+    inputs:
+      line1:
+        description: "Splash line 1 (big). Type - to leave out"
+        default: "LODESTAR"
+        required: false
+        type: string
+      line2:
+        description: "Splash line 2. Type - to leave out"
+        default: "BY"
+        required: false
+        type: string
+      line3:
+        description: "Splash line 3. Type - to leave out"
+        default: "FEAR REACTIVE"
+        required: false
+        type: string
+      seconds:
+        description: "How many seconds the splash stays on screen (1-30)"
+        default: "5"
+        required: true
+        type: string
+      env:
+        description: "Firmware type (Lodestar patches the repeater)"
+        default: heltec_v4_repeater
+        required: true
+        type: choice
+        options:
+          - heltec_v4_repeater
+      publish:
+        description: "Publish the result as a GitHub Release anyone can download"
+        default: false
+        required: false
+        type: boolean
+      release_tag:
+        description: "Release tag to publish under, e.g. v0.1.0-alpha (used only when publishing)"
+        default: "v0.1.0-alpha"
+        required: false
+        type: string
+
+permissions:
+  contents: write   # needed only to publish a Release
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Unit-test the scoring logic
+        run: |
+          g++ -std=c++17 -Wall -Wextra -Ilodestar lodestar/test/test_lodestar.cpp -o lodestar_test
+          ./lodestar_test
+
+      - name: Install tools
+        run: pip install platformio pillow numpy
+
+      - name: Get MeshCore
+        run: git clone --depth 1 https://github.com/meshcore-dev/MeshCore.git
+
+      - name: Apply Lodestar
+        run: python tools/apply_lodestar.py --meshcore MeshCore
+
+      - name: Generate splash
+        env:
+          LINE1: ${{ inputs.line1 }}
+          LINE2: ${{ inputs.line2 }}
+          LINE3: ${{ inputs.line3 }}
+          SPLASH_SECONDS: ${{ inputs.seconds }}
+        run: |
+          python tools/make_splash.py --meshcore MeshCore \
+            --line "$LINE1" --line "$LINE2" --line "$LINE3" \
+            --logo "-" --seconds "$SPLASH_SECONDS" \
+            --preview splash_preview.png
+
+      - name: Build firmware
+        working-directory: MeshCore
+        env:
+          FW_ENV: ${{ inputs.env }}
+        run: |
+          set -o pipefail
+          pio run -t mergebin -e "$FW_ENV" 2>&1 | tee ../build.log
+
+      - name: Show compile errors
+        if: failure()
+        run: |
+          grep -E "error|undefined reference|No such file" build.log | head -25 | while IFS= read -r l; do
+            echo "::error::${l:0:900}"
+          done
+
+      - name: Collect files
+        env:
+          FW_ENV: ${{ inputs.env }}
+        run: |
+          mkdir out
+          cp "MeshCore/.pio/build/$FW_ENV/firmware-merged.bin" out/
+          cp "MeshCore/.pio/build/$FW_ENV/firmware.bin" out/
+          cp splash_preview.png out/
+          git -C MeshCore rev-parse HEAD > out/meshcore_commit.txt
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: lodestar-${{ inputs.env }}
+          path: out/
+
+      - name: Publish release
+        if: ${{ inputs.publish }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.release_tag }}
+        run: |
+          MC=$(cut -c1-10 out/meshcore_commit.txt)
+          NOTES="LODESTAR mobile-repeater firmware for the Heltec V4 (OLED), by FEAR REACTIVE. Alpha test build on MeshCore commit $MC.
+
+          Download firmware-merged.bin and flash it at https://flasher.meshcore.io (Custom Firmware). firmware.bin is the application-only image for updating an existing install. See the README for setup and testing notes."
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" out/firmware-merged.bin out/firmware.bin out/splash_preview.png --clobber
+          else
+            gh release create "$TAG" out/firmware-merged.bin out/firmware.bin out/splash_preview.png \
+              --target "$GITHUB_SHA" --title "LODESTAR $TAG" --notes "$NOTES" --prerelease
+          fi

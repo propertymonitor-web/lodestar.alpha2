@@ -1,0 +1,5 @@
+.pio/
+MeshCore/
+out/
+*.bin
+__pycache__/
