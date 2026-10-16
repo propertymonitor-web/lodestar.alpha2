@@ -24,6 +24,7 @@ It is free, open, and built for the Heltec V4.
 - **Staleness decay.** A repeater you drove away from fades out of the ranking gracefully and is dropped after 30 minutes.
 - **Safe fallback.** No usable uplink in range? LODESTAR behaves exactly like the stock MeshCore repeater.
 - **Built-in table.** One serial command, `lodestar`, shows you what the node sees.
+- **Knows where it is.** GPS is on by default. LODESTAR tracks its own fix, speed and heading (`lodestar gps`). This is groundwork for position-aware features; for now it is read-only and changes nothing about how packets are forwarded.
 - **Custom splash.** Boots to a centered LODESTAR / BY / FEAR REACTIVE screen.
 - **Everything else is stock MeshCore.** Admin login, regions, CLI, OTA, adverts: the repeater you know, plus the brain.
 
@@ -45,7 +46,8 @@ The result you are aiming for is less wasted airtime, faster hand-off between up
 
 ## What you need
 
-- A **Heltec V4** (OLED version) with its LoRa antenna attached. **Never power the radio without an antenna.**
+- A **Heltec V4** (OLED version) with its LoRa antenna attached. **Never power the radio without an antenna.** This build is for the standard V4 (ESP32-S3R2). The V4-R8 uses different GPS, LED and power pins and needs its own build, so do not flash this one on an R8.
+- Optional: a GNSS module (for example Heltec's L76K) in the board's GNSS connector, for position tracking. LODESTAR works fine without one.
 - A USB data cable (not a charge-only cable).
 - A computer with **Chrome or Edge** (the flasher uses Web Serial, which Firefox and Safari do not support).
 - The `firmware-merged.bin` file for LODESTAR.
@@ -135,9 +137,25 @@ The summary line reports the best uplink, how many repeaters are heard, the curr
 | `lodestar floor F` | Minimum score to count as a usable uplink, 0 to 1. Default `0.25` |
 | `lodestar cancel on` / `off` / `F` | Turn duplicate-cancel on or off, or set its minimum score. Default on, `0.60` |
 | `lodestar off` / `on` | Fall back to stock forwarding, or re-enable LODESTAR |
+| `lodestar gps` | Show GPS status: fix, satellites, moving or stopped, speed and heading |
 | `lodestar reset` | Clear the uplink table |
 
 Settings are not saved across reboots; LODESTAR starts with its defaults each time.
+
+### GPS and position
+
+The Heltec V4 firmware in MeshCore already supports the board's GNSS connector; stock repeaters just ship with it switched off. LODESTAR switches it **on by default** and reads the fix.
+
+```
+GPS: fix, 9 sats, moving 54 km/h, course 0
+pos 32.751485,-97.330000 sats 9 fix age 1s speed 15.0 m/s course 0
+```
+
+- The first line is the command's reply. The second line (with coordinates) prints on the **local serial port only**. A reply can travel over the mesh to a remote admin, so it never contains your position.
+- Speed and heading are worked out from successive fixes (speed over about 3 seconds, heading after at least 8 m of travel). A parked node, wobbling a couple of metres, is reported as stopped.
+- **What it does not do.** It does not change who can see where you are. Adverts keep using the location you set in the repeater's settings (MeshCore's default), not the live fix. `gps advert share` is the setting that would broadcast it, and LODESTAR leaves it alone.
+- **Already used this node?** The default only applies to fresh installs. If the node saved `gps off` earlier, run `gps on` once; it is remembered. `gps` shows the hardware state and `gps diag` shows more detail. These are MeshCore commands.
+- The GPS needs a clear view of the sky. After a cold start, allow a few minutes for the first fix.
 
 ### Getting the most out of it
 
@@ -163,6 +181,7 @@ If you are one of the people helping to test LODESTAR, here is what is most usef
 5. Compare `lodestar on` against `lodestar off` on the same route. Do messages get through better, the same, or worse?
 6. Watch the `cancels` count in the summary. Does it climb in busy areas? Does anything seem to go missing when it does? If so, try `lodestar cancel off`.
 7. Does it behave sensibly when you leave all coverage and come back?
+8. With a GNSS module fitted: does `lodestar gps` get a fix, and does it report `moving` with a sensible speed and heading while you drive, and `stopped` when you park?
 
 Please note your radio settings, spreading factor, location type (city, rural, hills), and anything odd. Screenshots or copy-pastes of the `lodestar` output are very helpful.
 
@@ -174,6 +193,8 @@ Please note your radio settings, spreading factor, location type (city, rural, h
 | Table is empty | Make sure the radio settings match your mesh, wait for adverts, and run `advert` |
 | Scores look odd right after boot | Normal. Give it several minutes to build history |
 | Everything is ranked low | Check the antenna, the radio settings, and your spreading factor |
+| `lodestar gps` says `no fix` | Give it a clear view of the sky and a few minutes. Check that a GNSS module is plugged in, and run `gps` and `gps diag` |
+| `gps on` says `gps toggle not found`, or GPS stays off | No GNSS module was detected at boot (MeshCore only looks for one during start-up), or the node saved `gps off` earlier. Check the module, reboot, then run `gps on` |
 | You want stock behaviour | `lodestar off` |
 | Splash still shows the old text | You flashed the wrong file; rebuild and flash `firmware-merged.bin` |
 

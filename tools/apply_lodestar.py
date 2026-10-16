@@ -87,6 +87,17 @@ OBSERVE_TX = r'''  // --- Lodestar: remember flood packets we send, to watch for
   }
 '''
 
+GPS_FEED = r'''#if ENV_INCLUDE_GPS == 1
+  {  // --- Lodestar: hand the GPS fix (if any) to Lodestar; read-only, changes no forwarding ---
+    LocationProvider* ls_gps = sensors.getLocationProvider();
+    if (ls_gps != NULL && ls_gps->isEnabled()) {
+      lodestar.onPosition((int32_t)ls_gps->getLatitude(), (int32_t)ls_gps->getLongitude(),
+                          (uint8_t)ls_gps->satellitesCount(), ls_gps->isValid(), millis());
+    }
+  }
+#endif
+'''
+
 SERIAL_PRINT = r'''static void lodestarSerialPrint(const char* line) {
   Serial.println(line);
 }
@@ -152,10 +163,20 @@ def main():
                   "  return (uint32_t)(ls_d * lodestar.delayFactor(millis()));   // Lodestar: best-placed goes first",
         "getRetransmitDelay", flags=re.S)
 
-    # 5. housekeeping
+    # 5. housekeeping, and the GPS fix (sensors.loop() in main.cpp keeps the GPS parsed)
     cpp = patch_once(
         cpp, r"(  mesh::Mesh::loop\(\);\n)",
-        lambda m: m.group(1) + "  lodestar.loop(millis());\n", "Mesh::loop call in MyMesh::loop")
+        lambda m: m.group(1) + "  lodestar.loop(millis());\n" + GPS_FEED, "Mesh::loop call in MyMesh::loop")
+
+    # 5b. GPS on by default. A moving node needs to know where it is. Upstream already
+    # compiles the Heltec V4 GPS in (ENV_INCLUDE_GPS) but ships it switched off. This only
+    # changes the default for a fresh install: saved settings still win, so a node that
+    # already stored "gps off" needs `gps on` once. Who sees the position is untouched
+    # (advert_loc_policy stays upstream's default, which does not share the live fix).
+    cpp = patch_once(
+        cpp, r"(  _prefs\.gps_enabled = )0;",
+        lambda m: m.group(1) + "1;   // Lodestar: GPS on by default",
+        "GPS default in MyMesh constructor")
 
     # 6. serial / remote CLI:  lodestar [table|weights r l h|floor f|cancel on|off|f|on|off|reset]
     cpp = patch_once(
@@ -176,7 +197,7 @@ def main():
     print("Lodestar applied:")
     print(f"  + {os.path.relpath(dest, root)}")
     print(f"  ~ {os.path.relpath(h_path, root)}  (include + member)")
-    print(f"  ~ {os.path.relpath(c_path, root)}  (rx/tx observe, advert feed, delay scaling, loop, CLI)")
+    print(f"  ~ {os.path.relpath(c_path, root)}  (rx/tx observe, advert feed, delay scaling, loop, GPS, CLI)")
 
 
 if __name__ == "__main__":

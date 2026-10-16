@@ -18,6 +18,8 @@
 //     (better placed => transmit sooner) and a duplicate-cancel check.
 //   * Never blocks forwarding. If no usable uplink exists it behaves like the
 //     stock repeater (delay factor 1.0).
+//   * Tracks the node's own position (fix, speed, course) from the GPS. For now
+//     this is read-only plumbing: it does not change forwarding decisions.
 #pragma once
 
 #include <stdint.h>
@@ -25,6 +27,10 @@
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
+
+#ifndef M_PI
+#define M_PI 3.14159265358979323846
+#endif
 
 namespace lodestar {
 
@@ -53,6 +59,21 @@ struct Config {
   float    cancel_min   = 0.60f;     // ...and its score is at least this
   float    cancel_min_lq= 0.50f;     // ...and the link to it is at least this good
   uint8_t  sf           = 10;        // spreading factor, for the SNR floor
+  uint32_t gps_fresh_ms = 10000;     // a GPS fix older than this no longer counts
+  float    min_move_mps = 1.5f;      // slower than this counts as stopped (GPS jitter at rest)
+};
+
+// Where this node is, fed from the GPS by the glue. Speed and course are derived
+// from successive fixes, so no extra GPS driver support is needed. Position is
+// kept separate from the uplink table: `lodestar reset` does not clear it.
+struct Position {
+  bool     valid;                    // a fix has been seen since the GPS last lost it
+  int32_t  lat_e6, lon_e6;           // degrees * 1e6
+  uint8_t  sats;
+  uint32_t fix_ms;                   // device millis of the latest accepted fix
+  float    speed_mps;                // smoothed, metres per second
+  float    course_deg;               // 0 = north, 90 = east; held while stopped
+  bool     course_valid;
 };
 
 struct Uplink {
@@ -178,6 +199,47 @@ public:
 
   void noteCancel() { _cancels++; }
 
+  // The GPS reported its state. Call as often as you like (every loop is fine);
+  // fixes are taken at most once a second. `fix` false means no usable fix.
+  //   speed  - measured over ~3 s windows (steadier than fix-to-fix at 1 Hz) and
+  //            lightly smoothed; the first window after a (re)start is taken as is
+  //   course - only updates after moving at least 8 m from the last course point,
+  //            so GPS jitter at rest does not invent a heading, while a slow
+  //            walker still gets one every few seconds
+  void onPosition(int32_t lat_e6, int32_t lon_e6, uint8_t sats, bool fix, uint32_t now) {
+    if (!fix) {                                   // lost it: do not measure across the gap
+      _pos.valid = false; _pos.speed_mps = 0; _pos.course_valid = false;
+      _have_anchor = false; _have_speed = false;
+      return;
+    }
+    bool restart = !_pos.valid || elapsed(now, _pos.fix_ms) > cfg.gps_fresh_ms;
+    if (!restart && elapsed(now, _pos.fix_ms) < 1000) return;   // GPS is 1 Hz
+    _pos.lat_e6 = lat_e6; _pos.lon_e6 = lon_e6; _pos.sats = sats; _pos.fix_ms = now;
+    if (restart || !_have_anchor) {
+      _pos.valid = true; _pos.speed_mps = 0; _pos.course_valid = false; _have_speed = false;
+      _anchor_lat = lat_e6; _anchor_lon = lon_e6; _anchor_ms = now;
+      _course_lat = lat_e6; _course_lon = lon_e6;
+      _have_anchor = true;
+      return;
+    }
+    double dx, dy;
+    offsetM(_course_lat, _course_lon, lat_e6, lon_e6, dx, dy);
+    if (sqrt(dx * dx + dy * dy) >= 8.0) {
+      double b = atan2(dx, dy) * 180.0 / M_PI;
+      if (b < 0) b += 360.0;
+      _pos.course_deg = (float)b; _pos.course_valid = true;
+      _course_lat = lat_e6; _course_lon = lon_e6;
+    }
+    uint32_t dt = elapsed(now, _anchor_ms);
+    if (dt >= 3000) {
+      offsetM(_anchor_lat, _anchor_lon, lat_e6, lon_e6, dx, dy);
+      float v = (float)(sqrt(dx * dx + dy * dy) / ((double)dt / 1000.0));
+      _pos.speed_mps = _have_speed ? 0.5f * _pos.speed_mps + 0.5f * v : v;
+      _have_speed = true;
+      _anchor_lat = lat_e6; _anchor_lon = lon_e6; _anchor_ms = now;
+    }
+  }
+
   // Housekeeping; call from loop().
   void loop(uint32_t now) {
     for (int k = 0; k < LODESTAR_MAX_PENDING; k++) {
@@ -216,6 +278,10 @@ public:
   const Uplink& entry(int i) const { return _t[i]; }
   float scoreOf(int i, uint32_t now) { evaluate(now); return _score[i]; }
   int   count() const { int n = 0; for (int i = 0; i < LODESTAR_MAX_UPLINKS; i++) n += _t[i].used; return n; }
+
+  const Position& position() const { return _pos; }
+  bool  hasFix(uint32_t now) const { return _pos.valid && elapsed(now, _pos.fix_ms) <= cfg.gps_fresh_ms; }
+  bool  moving(uint32_t now) const { return hasFix(now) && _pos.speed_mps >= cfg.min_move_mps; }
 
   float reliability(int i, uint32_t now) const {
     const Uplink& u = _t[i];
@@ -257,6 +323,28 @@ public:
     snprintf(out, cap, "Lodestar: best %02X sc%d rel%d lq%d, %d heard, delay x%.2f, cancels %lu",
              u.key[0], pct(_best_score), pct(reliability(_best, now)), pct(linkQuality(_best)),
              count(), (double)delayFactor(now), (unsigned long)_cancels);
+  }
+
+  // GPS status for a reply. No coordinates: a reply can travel over the mesh to a
+  // remote admin, and where you are is not for broadcasting.
+  void gpsStatus(char* out, size_t cap, uint32_t now) const {
+    if (!hasFix(now)) { snprintf(out, cap, "GPS: no fix"); return; }
+    if (moving(now) && _pos.course_valid) {
+      snprintf(out, cap, "GPS: fix, %d sats, moving %d km/h, course %d",
+               (int)_pos.sats, (int)(_pos.speed_mps * 3.6f + 0.5f), (int)(_pos.course_deg + 0.5f) % 360);
+    } else {
+      snprintf(out, cap, "GPS: fix, %d sats, %s", (int)_pos.sats, moving(now) ? "moving" : "stopped");
+    }
+  }
+
+  // Full position line, coordinates included. Only ever sent to the local serial port.
+  bool gpsDetail(char* out, size_t cap, uint32_t now) const {
+    if (!hasFix(now)) return false;
+    snprintf(out, cap, "pos %.6f,%.6f sats %d fix age %lus speed %.1f m/s course %d",
+             (double)_pos.lat_e6 / 1e6, (double)_pos.lon_e6 / 1e6, (int)_pos.sats,
+             (unsigned long)(elapsed(now, _pos.fix_ms) / 1000), (double)_pos.speed_mps,
+             _pos.course_valid ? (int)(_pos.course_deg + 0.5f) % 360 : -1);
+    return true;
   }
 
   // One table row; returns false when the row is unused.
@@ -311,6 +399,10 @@ public:
       else if (strncmp(a, "on", 2) == 0) cfg.cancel_dup = true;
       else if (*a) { float f = atof(a); if (f <= 0 || f > 1) { snprintf(reply, cap, "Err - cancel on|off|0..1"); return; } cfg.cancel_min = f; cfg.cancel_dup = true; }
       snprintf(reply, cap, "OK - cancel %s min %.2f", cfg.cancel_dup ? "on" : "off", (double)cfg.cancel_min);
+    } else if (strncmp(args, "gps", 3) == 0) {
+      gpsStatus(reply, cap, now);
+      char line[128];
+      if (print && gpsDetail(line, sizeof(line), now)) print(line);   // coordinates: serial only
     } else if (strncmp(args, "off", 3) == 0) {
       cfg.enabled = false; snprintf(reply, cap, "OK - Lodestar off (stock forwarding)");
     } else if (strncmp(args, "on", 2) == 0) {
@@ -318,7 +410,7 @@ public:
     } else if (strncmp(args, "reset", 5) == 0) {
       Config keep = cfg; reset(); cfg = keep; snprintf(reply, cap, "OK - uplink table cleared");
     } else {
-      snprintf(reply, cap, "lodestar [table|weights r l h|floor f|cancel on|off|f|on|off|reset]");
+      snprintf(reply, cap, "lodestar [table|gps|weights r l h|floor f|cancel on|off|f|on|off|reset]");
     }
   }
 
@@ -371,8 +463,23 @@ private:
   uint8_t  _chal_count;
   uint32_t _last_eval, _cancels, _tx_tracked;
   bool     _eval_valid;
+  Position _pos{};                     // not cleared by reset(): it is not part of the uplink table
+  int32_t  _anchor_lat = 0, _anchor_lon = 0;     // start of the current speed window
+  uint32_t _anchor_ms = 0;
+  int32_t  _course_lat = 0, _course_lon = 0;     // last point a course was taken from
+  bool     _have_anchor = false, _have_speed = false;
 
   static uint32_t elapsed(uint32_t now, uint32_t then) { return now - then; }  // wrap-safe
+
+  // East/north offset in metres from (lat0,lon0) to (lat1,lon1), both in degrees*1e6.
+  // Flat-earth approximation: fine over the few metres between two GPS fixes.
+  static void offsetM(int32_t lat0, int32_t lon0, int32_t lat1, int32_t lon1, double& east, double& north) {
+    const double k = M_PI / 180.0 / 1e6;
+    const double R = 6371000.0;
+    double mid = ((double)lat0 + (double)lat1) * 0.5 * k;
+    north = (double)(lat1 - lat0) * k * R;
+    east  = (double)(lon1 - lon0) * k * R * cos(mid);
+  }
   static float clamp01(float v) { return v < 0 ? 0 : (v > 1 ? 1 : v); }
   static int pct(float v) { return (int)(clamp01(v) * 100.0f + 0.5f); }
 

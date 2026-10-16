@@ -18,6 +18,21 @@ static void hear(Lodestar& L, const uint8_t* pk, float snr, float rssi, uint32_t
 
 static void pr(const char* s) { printf("    %s\n", s); }
 
+static char g_cap[160];
+static int  g_cap_calls = 0;
+static void capture(const char* s) { snprintf(g_cap, sizeof(g_cap), "%s", s); g_cap_calls++; }
+
+// Feed one GPS fix per second for `secs` seconds, moving (dlat, dlon) microdegrees each second.
+// Returns the time after the last fix.
+static uint32_t drive(Lodestar& L, uint32_t t, int secs, int32_t& lat, int32_t& lon,
+                      int32_t dlat, int32_t dlon, uint8_t sats = 9) {
+  for (int i = 0; i < secs; i++, t += 1000) {
+    L.onPosition(lat, lon, sats, true, t);
+    lat += dlat; lon += dlon;
+  }
+  return t;
+}
+
 int main() {
   // 1. strong neighbour outranks weak one
   {
@@ -206,6 +221,134 @@ int main() {
     Lodestar L; uint32_t t = 100000; char line[128];
     for (int i = 0; i < 12; i++, t += 20000) { hear(L, PK_A, 8, -85, t); hear(L, PK_B, -2, -105, t); }
     for (int i = 0; i < 24; i++) if (L.row(i, line, sizeof(line), t)) printf("  %s\n", line);
+  }
+
+  // 16. no GPS => no fix, and nothing breaks
+  {
+    Lodestar L; char r[160];
+    CHECK(!L.hasFix(5000) && !L.moving(5000));
+    L.gpsStatus(r, sizeof(r), 5000);
+    CHECK(strcmp(r, "GPS: no fix") == 0);
+  }
+
+  // 17. driving north at ~15 m/s: speed ~15, course ~0, moving
+  {
+    Lodestar L; char r[160]; int32_t lat = 32750000, lon = -97330000;
+    uint32_t t = drive(L, 100000, 12, lat, lon, 135, 0);       // 135 microdeg/s ~ 15.0 m/s north
+    CHECK(L.hasFix(t) && L.moving(t));
+    CHECK(fabsf(L.position().speed_mps - 15.0f) < 1.5f);
+    CHECK(L.position().course_valid && (L.position().course_deg < 2.0f || L.position().course_deg > 358.0f));
+    L.gpsStatus(r, sizeof(r), t);
+    printf("  %s\n", r);
+    CHECK(strstr(r, "moving") != NULL && strstr(r, "km/h") != NULL && strstr(r, "32.75") == NULL);
+  }
+
+  // 18. driving east at ~15 m/s: course ~90
+  {
+    Lodestar L; int32_t lat = 32750000, lon = -97330000;
+    uint32_t t = drive(L, 100000, 12, lat, lon, 0, 160);       // 160 microdeg/s at 32.75N ~ 15.0 m/s east
+    CHECK(L.moving(t));
+    CHECK(fabsf(L.position().course_deg - 90.0f) < 2.0f);
+    CHECK(fabsf(L.position().speed_mps - 15.0f) < 1.5f);
+  }
+
+  // 18b. a hiker at ~1.7 m/s heading south-east still gets speed and a course
+  {
+    Lodestar L; int32_t lat = 32750000, lon = -97330000;
+    uint32_t t = drive(L, 100000, 30, lat, lon, -11, 12);      // ~1.2 m/s south + ~1.1 m/s east
+    CHECK(L.moving(t));
+    CHECK(L.position().speed_mps > 1.4f && L.position().speed_mps < 2.0f);
+    CHECK(L.position().course_valid && fabsf(L.position().course_deg - 137.0f) < 8.0f);
+  }
+
+  // 19. parked with GPS jitter (+-1.7 m): not moving, no course invented
+  {
+    Lodestar L; int32_t lat = 32750000, lon = -97330000; uint32_t t = 100000;
+    for (int i = 0; i < 90; i++, t += 1000) {
+      int32_t j = (i % 2) ? 15 : -15;
+      L.onPosition(lat + j, lon - j, 8, true, t);
+    }
+    CHECK(L.hasFix(t) && !L.moving(t));
+    CHECK(!L.position().course_valid);
+  }
+
+  // 20. fix lost then regained far away: no absurd speed measured across the gap
+  {
+    Lodestar L; int32_t lat = 32750000, lon = -97330000;
+    uint32_t t = drive(L, 100000, 12, lat, lon, 135, 0);
+    CHECK(L.moving(t));
+    L.onPosition(0, 0, 0, false, t);
+    CHECK(!L.hasFix(t) && !L.moving(t));
+    t += 30000;
+    lat += 30000; lon += 30000;                                // ~3 km away when it comes back
+    L.onPosition(lat, lon, 6, true, t);
+    CHECK(L.hasFix(t) && L.position().speed_mps == 0.0f && !L.moving(t));
+  }
+
+  // 21. feed goes quiet (GPS switched off): fix expires, and a late restart does not measure the gap
+  {
+    Lodestar L; int32_t lat = 32750000, lon = -97330000;
+    uint32_t t = drive(L, 100000, 12, lat, lon, 135, 0);
+    CHECK(L.hasFix(t));
+    CHECK(!L.hasFix(t + 20000));                               // older than gps_fresh_ms
+    lat += 50000;                                              // far away after a quiet spell
+    L.onPosition(lat, lon, 7, true, t + 20000);
+    CHECK(L.hasFix(t + 20000) && L.position().speed_mps == 0.0f);
+  }
+
+  // 22. polled every loop (50 ms) while the GPS only changes once a second: same answer
+  {
+    Lodestar L; int32_t lat0 = 32750000, lon = -97330000; uint32_t t = 100000;
+    for (int ms = 0; ms < 12000; ms += 50, t += 50) {
+      int32_t lat = lat0 + 135 * (int32_t)(ms / 1000);         // a GPS holds its last fix between updates
+      L.onPosition(lat, lon, 9, true, t);
+    }
+    CHECK(L.moving(t));
+    CHECK(fabsf(L.position().speed_mps - 15.0f) < 2.0f);
+  }
+
+  // 23. millis wrap-around while driving
+  {
+    Lodestar L; int32_t lat = 32750000, lon = -97330000;
+    uint32_t t = drive(L, 0xFFFFFFFFu - 6000u, 14, lat, lon, 135, 0);
+    CHECK(L.hasFix(t) && L.moving(t));
+    CHECK(fabsf(L.position().speed_mps - 15.0f) < 1.5f);
+  }
+
+  // 24. CLI: the reply never carries coordinates; the serial line does, and only with a fix
+  {
+    Lodestar L; char r[160]; int32_t lat = 32750000, lon = -97330000;
+    g_cap_calls = 0;
+    L.runCommand(" gps", r, sizeof(r), 5000, capture);
+    CHECK(strcmp(r, "GPS: no fix") == 0 && g_cap_calls == 0);
+    uint32_t t = drive(L, 100000, 12, lat, lon, 135, 0);
+    L.runCommand(" gps", r, sizeof(r), t, capture);
+    printf("  reply: %s\n  serial: %s\n", r, g_cap);
+    CHECK(strstr(r, "GPS: fix") != NULL && strstr(r, "32.") == NULL && strstr(r, "97.") == NULL);
+    CHECK(g_cap_calls == 1 && strstr(g_cap, "32.75") != NULL && strstr(g_cap, "-97.33") != NULL);
+    L.runCommand(" gps", r, sizeof(r), t, NULL);               // remote admin: no serial printer
+    CHECK(strstr(r, "GPS: fix") != NULL);
+  }
+
+  // 25. `lodestar reset` clears the uplink table but keeps the position
+  {
+    Lodestar L; char r[160]; int32_t lat = 32750000, lon = -97330000;
+    uint32_t t = drive(L, 100000, 12, lat, lon, 135, 0);
+    hear(L, PK_A, 8, -85, t);
+    L.runCommand(" reset", r, sizeof(r), t, pr);
+    CHECK(L.count() == 0 && L.hasFix(t) && L.moving(t));
+  }
+
+  // 26. position is plumbing only: forwarding decisions are identical with or without it
+  {
+    Lodestar A, B; int32_t lat = 32750000, lon = -97330000; uint32_t t = 100000;
+    for (int i = 0; i < 12; i++, t += 20000) {
+      hear(A, PK_A, 9, -80, t); hear(B, PK_A, 9, -80, t);
+      hear(A, PK_B, -2, -105, t); hear(B, PK_B, -2, -105, t);
+    }
+    drive(B, t, 12, lat, lon, 135, 0);
+    CHECK(A.delayFactor(t) == B.delayFactor(t));
+    CHECK(A.best() == B.best());
   }
 
   printf(fails ? "\n%d FAILED\n" : "\nall tests passed\n", fails);
