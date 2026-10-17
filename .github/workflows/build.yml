@@ -153,7 +153,7 @@ jobs:
           TAG: ${{ inputs.release_tag }}
         run: |
           MC=$(cut -c1-10 out/meshcore_commit.txt)
-          NOTES="LODESTAR mobile-repeater firmware for the Heltec V4 (OLED), by FEAR REACTIVE. Alpha test build on MeshCore commit $MC.
+          NOTES="LODESTAR mobile-repeater firmware for the Heltec WiFi LoRa 32 V4 R2 (ESP32-S3R2, OLED), by FEAR REACTIVE. Not for the V4-R8. Alpha test build on MeshCore commit $MC.
 
           Download firmware-merged.bin and flash it at https://flasher.meshcore.io (Custom Firmware). firmware.bin is the application-only image for updating an existing install. See the README for setup and testing notes."
           if gh release view "$TAG" >/dev/null 2>&1; then

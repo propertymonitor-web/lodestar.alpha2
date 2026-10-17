@@ -2,11 +2,13 @@
 
 ### Mobile-repeater firmware for MeshCore, by FEAR REACTIVE
 
-**Version v0.1.0-alpha** (alpha test release, Heltec V4)
+**Version v0.1.0-alpha** (alpha test release, **Heltec WiFi LoRa 32 V4 R2 only**)
 
 A repeater that is moving needs to think differently from one bolted to a tower. The tower never changes its neighbours. A vehicle, a hiker, or a boat is constantly gaining and losing them. LODESTAR is MeshCore repeater firmware with a built-in sense of *which repeaters around it are actually worth relying on right now*, and it uses that to forward traffic more intelligently.
 
-It is free, open, and built for the Heltec V4.
+It is free, open, and built for the **Heltec WiFi LoRa 32 V4 R2** (ESP32-S3R2, OLED).
+
+> **Hardware check before you flash.** Heltec sells the V4 in two versions: **V4 R2** (ESP32-S3R2, 2 MB PSRAM) and **V4-R8** (ESP32-S3R8, 8 MB PSRAM). **This firmware is for the R2 only.** The two boards use different pins for GPS, the LED and external power, so an R2 image on an R8 can leave the GPS unpowered or misbehave. Check the MCU option on your order or listing before flashing. If you have an R8, do not use this build yet.
 
 > **Status: field-test release.** The firmware compiles, and the scoring logic is covered by automated tests, but it is new. That is why this README has a testing section. Your drive logs are exactly what will make it better.
 
@@ -46,7 +48,7 @@ The result you are aiming for is less wasted airtime, faster hand-off between up
 
 ## What you need
 
-- A **Heltec V4** (OLED version) with its LoRa antenna attached. **Never power the radio without an antenna.** This build is for the standard V4 (ESP32-S3R2). The V4-R8 uses different GPS, LED and power pins and needs its own build, so do not flash this one on an R8.
+- A **Heltec WiFi LoRa 32 V4 R2** (ESP32-S3R2, OLED version) with its LoRa antenna attached. **Never power the radio without an antenna.** This is the standard V4. It is **not** for the V4-R8 (ESP32-S3R8), which uses different GPS, LED and power pins and needs its own build. If your listing says R8, do not flash this.
 - Optional: a GNSS module (for example Heltec's L76K) in the board's GNSS connector, for position tracking. LODESTAR works fine without one.
 - A USB data cable (not a charge-only cable).
 - A computer with **Chrome or Edge** (the flasher uses Web Serial, which Firefox and Safari do not support).
@@ -122,7 +124,7 @@ The finished files are in `MeshCore/.pio/build/heltec_v4_repeater/`: `firmware-m
 
 ## Flashing with the MeshCore web flasher
 
-1. Plug the Heltec V4 into your computer with the USB data cable.
+1. Plug the Heltec V4 R2 into your computer with the USB data cable.
 2. In Chrome or Edge, go to **https://flasher.meshcore.io**.
 3. Choose **Custom Firmware** and select `firmware-merged.bin`.
 4. Click to connect and pick the board's serial port from the browser prompt. (It usually appears as a USB serial or Silicon Labs / Espressif device.)
@@ -240,6 +242,7 @@ Please note your radio settings, spreading factor, location type (city, rural, h
 | Everything is ranked low | Check the antenna, the radio settings, and your spreading factor |
 | `lodestar gps` says `no fix` | Give it a clear view of the sky and a few minutes. Check that a GNSS module is plugged in, and run `gps` and `gps diag` |
 | `gps on` says `gps toggle not found`, or GPS stays off | No GNSS module was detected at boot (MeshCore only looks for one during start-up), or the node saved `gps off` earlier. Check the module, reboot, then run `gps on` |
+| Board will not boot, or the GPS never powers up | Check you have a V4 **R2**. This build is not for the V4-R8. To recover a board that will not boot, hold PRG, tap RST, release PRG, then reflash |
 | You want stock behaviour | `lodestar off` |
 | Splash still shows the old text | You flashed the wrong file; rebuild and flash `firmware-merged.bin` |
 
