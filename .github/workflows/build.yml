@@ -1,8 +1,15 @@
 name: Build LODESTAR firmware
 
-run-name: "LODESTAR: ${{ inputs.line1 }} / ${{ inputs.line2 }} / ${{ inputs.line3 }} (${{ inputs.env }})"
+run-name: "${{ github.event_name == 'workflow_dispatch' && format('LODESTAR: {0} / {1} / {2} ({3})', inputs.line1, inputs.line2, inputs.line3, inputs.env) || 'LODESTAR checks' }}"
 
+# Two kinds of run:
+#   * every push and pull request: the unit tests, plus a check that the patch still
+#     applies to the current MeshCore (about a minute, no firmware build)
+#   * "Run workflow" by hand: the same checks, then the full firmware build (about 6 minutes)
 on:
+  push:
+  pull_request:
+    branches: [main]
   workflow_dispatch:
     inputs:
       line1:
@@ -44,10 +51,22 @@ on:
         type: string
 
 permissions:
-  contents: write   # needed only to publish a Release
+  contents: read
 
 jobs:
-  build:
+  test:
+    name: Unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Unit-test the scoring logic
+        run: |
+          g++ -std=c++17 -Wall -Wextra -Ilodestar lodestar/test/test_lodestar.cpp -o lodestar_test
+          ./lodestar_test
+
+  patch-check:
+    name: Patch still applies to current MeshCore
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -56,10 +75,25 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Unit-test the scoring logic
-        run: |
-          g++ -std=c++17 -Wall -Wextra -Ilodestar lodestar/test/test_lodestar.cpp -o lodestar_test
-          ./lodestar_test
+      - name: Get MeshCore
+        run: git clone --depth 1 https://github.com/meshcore-dev/MeshCore.git
+
+      - name: Apply Lodestar
+        run: python tools/apply_lodestar.py --meshcore MeshCore
+
+  build:
+    name: Build firmware
+    needs: [test, patch-check]
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write   # needed only to publish a Release
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
 
       - name: Install tools
         run: pip install platformio pillow numpy

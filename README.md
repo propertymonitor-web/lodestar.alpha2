@@ -75,6 +75,51 @@ You need a GitHub account and your own **fork** of this repository (the **Fork**
 
 Repository owners can tick **Publish the result as a GitHub Release** in the same form to turn a build into a downloadable release for everyone.
 
+Every push and pull request also runs a quick check (about a minute): the unit tests, and a test that the patch still applies to the newest MeshCore. It does not build firmware. Only **Run workflow** does that.
+
+### Build it on your own computer
+
+No GitHub account needed. You need `git`, Python 3 (the build runs on 3.11; it also works on 3.13), a C++ compiler (`g++` or `clang++`) for the tests, and [PlatformIO](https://platformio.org/) for the firmware. On Windows, WSL is the easiest way to get all of these. The first firmware build downloads the ESP32 toolchain, which is a few hundred MB and takes a while; later builds are quicker.
+
+```
+pip install platformio pillow numpy
+git clone <address of this repository> lodestar
+cd lodestar
+```
+
+**1. Run the tests** (quick, and no hardware needed):
+
+```
+g++ -std=c++17 -Wall -Wextra -Ilodestar lodestar/test/test_lodestar.cpp -o lodestar_test
+./lodestar_test
+```
+
+It should end with `all tests passed`.
+
+**2. Get MeshCore and apply LODESTAR to it.** Use a fresh clone every time; the script refuses to patch a checkout that already has LODESTAR in it.
+
+```
+git clone --depth 1 https://github.com/meshcore-dev/MeshCore.git
+python tools/apply_lodestar.py --meshcore MeshCore
+```
+
+If upstream MeshCore has changed enough that a patch no longer fits, the script stops and names the part it could not find, rather than leaving a half-patched tree. If you hit that, let the maintainers know which part it named.
+
+**3. Set the boot splash.** Up to three text lines (use `-` for a blank line), the seconds it stays on screen, and a preview image to check it:
+
+```
+python tools/make_splash.py --meshcore MeshCore --line LODESTAR --line BY --line "FEAR REACTIVE" --seconds 5 --preview splash_preview.png
+```
+
+**4. Build.**
+
+```
+cd MeshCore
+pio run -t mergebin -e heltec_v4_repeater
+```
+
+The finished files are in `MeshCore/.pio/build/heltec_v4_repeater/`: `firmware-merged.bin` (first flash) and `firmware.bin` (updates). Flash with the web flasher as described below. `git -C MeshCore rev-parse HEAD` tells you which MeshCore version you built on.
+
 ## Flashing with the MeshCore web flasher
 
 1. Plug the Heltec V4 into your computer with the USB data cable.
@@ -206,7 +251,7 @@ Please note your radio settings, spreading factor, location type (city, rural, h
 - `lodestar/test/test_lodestar.cpp` has the unit tests (`g++ -std=c++17 -Ilodestar lodestar/test/test_lodestar.cpp`).
 - `tools/apply_lodestar.py` patches a MeshCore checkout's `examples/simple_repeater`. Every edit must match exactly once, so it stops with a clear message if upstream MeshCore changes.
 - `tools/make_splash.py` generates the boot splash.
-- `.github/workflows/build.yml` runs the tests, applies the patches, builds the Heltec V4 repeater, and publishes the artifact.
+- `.github/workflows/build.yml` has three jobs. `test` and `patch-check` run on every push and pull request. `build` runs only when started by hand: it applies the patches, builds the Heltec V4 repeater, and publishes the artifact. See [Build it on your own computer](#build-it-on-your-own-computer) for the same steps run locally.
 
 ### How the scoring works, briefly
 
