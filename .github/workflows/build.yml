@@ -45,8 +45,8 @@ on:
         required: false
         type: boolean
       release_tag:
-        description: "Release tag to publish under, e.g. v0.1.0-alpha (used only when publishing)"
-        default: "v0.1.0-alpha"
+        description: "NEW release tag, e.g. v0.2.0-alpha. Required when publishing; it must not exist yet"
+        default: ""
         required: false
         type: string
 
@@ -90,6 +90,27 @@ jobs:
       contents: write   # needed only to publish a Release
     steps:
       - uses: actions/checkout@v4
+
+      # Fail in seconds, not after the build, if the release cannot be made.
+      # This workflow only ever creates a NEW release: re-using a tag would swap the
+      # files but leave the old tag, source and notes in place.
+      - name: Check the release tag (only when publishing)
+        if: ${{ inputs.publish }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.release_tag }}
+        run: |
+          if [ -z "$TAG" ]; then
+            echo "::error::Publishing needs a release tag. Type a NEW one, for example v0.2.0-alpha."
+            exit 1
+          fi
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "::error::A release named $TAG already exists. Choose a new tag; this workflow never overwrites a release."
+            exit 1
+          fi
+          if [ "$GITHUB_REF_NAME" != "main" ]; then
+            echo "::warning::Publishing from branch '$GITHUB_REF_NAME'. Releases should normally be made from main."
+          fi
 
       - uses: actions/setup-python@v5
         with:
@@ -156,9 +177,7 @@ jobs:
           NOTES="LODESTAR mobile-repeater firmware for the Heltec WiFi LoRa 32 V4 R2 (ESP32-S3R2, OLED), by FEAR REACTIVE. Not for the V4-R8. Alpha test build on MeshCore commit $MC.
 
           Download firmware-merged.bin and flash it at https://flasher.meshcore.io (Custom Firmware). firmware.bin is the application-only image for updating an existing install. See the README for setup and testing notes."
-          if gh release view "$TAG" >/dev/null 2>&1; then
-            gh release upload "$TAG" out/firmware-merged.bin out/firmware.bin out/splash_preview.png --clobber
-          else
-            gh release create "$TAG" out/firmware-merged.bin out/firmware.bin out/splash_preview.png \
-              --target "$GITHUB_SHA" --title "LODESTAR $TAG" --notes "$NOTES" --prerelease
-          fi
+          # Always a new release (the tag was checked before the build). If the tag appeared
+          # in the meantime this fails rather than overwriting anything.
+          gh release create "$TAG" out/firmware-merged.bin out/firmware.bin out/splash_preview.png \
+            --target "$GITHUB_SHA" --title "LODESTAR $TAG" --notes "$NOTES" --prerelease

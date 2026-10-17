@@ -178,7 +178,7 @@ def main():
         lambda m: m.group(1) + "1;   // Lodestar: GPS on by default",
         "GPS default in MyMesh constructor")
 
-    # 6. serial / remote CLI:  lodestar [table|weights r l h|floor f|cancel on|off|f|on|off|reset]
+    # 6. serial / remote CLI:  lodestar [table|gps|weights r l h|floor f|cancel on|off|f|on|off|reset]
     cpp = patch_once(
         cpp, r"(void MyMesh::handleCommand\(uint32_t sender_timestamp, char \*command, char \*reply\) \{\n)",
         lambda m: SERIAL_PRINT + m.group(1), "handleCommand")

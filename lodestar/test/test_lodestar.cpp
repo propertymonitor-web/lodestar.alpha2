@@ -351,6 +351,17 @@ int main() {
     CHECK(A.best() == B.best());
   }
 
+  // 27. `lodestar floor` needs a number: missing or non-numeric input is rejected, not read as 0
+  {
+    Lodestar L; char r[160]; uint32_t t = 100000;
+    CHECK(fabsf(L.cfg.floor_score - 0.25f) < 1e-4f);
+    L.runCommand(" floor", r, sizeof(r), t, pr);       CHECK(strncmp(r, "Err", 3) == 0 && fabsf(L.cfg.floor_score - 0.25f) < 1e-4f);
+    L.runCommand(" floor abc", r, sizeof(r), t, pr);   CHECK(strncmp(r, "Err", 3) == 0 && fabsf(L.cfg.floor_score - 0.25f) < 1e-4f);
+    L.runCommand(" floor 1.5", r, sizeof(r), t, pr);   CHECK(strncmp(r, "Err", 3) == 0 && fabsf(L.cfg.floor_score - 0.25f) < 1e-4f);
+    L.runCommand(" floor 0.4", r, sizeof(r), t, pr);   CHECK(strncmp(r, "OK", 2) == 0 && fabsf(L.cfg.floor_score - 0.4f) < 1e-4f);
+    L.runCommand(" floor 0", r, sizeof(r), t, pr);     CHECK(strncmp(r, "OK", 2) == 0 && L.cfg.floor_score == 0.0f);   // an explicit 0 is still allowed
+  }
+
   printf(fails ? "\n%d FAILED\n" : "\nall tests passed\n", fails);
   return fails ? 1 : 0;
 }

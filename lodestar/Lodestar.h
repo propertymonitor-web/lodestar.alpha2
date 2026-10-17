@@ -389,8 +389,9 @@ public:
       _eval_valid = false;
       snprintf(reply, cap, "OK - weights rel %.2f lq %.2f hop %.2f", (double)cfg.w_rel, (double)cfg.w_lq, (double)cfg.w_hop);
     } else if (strncmp(args, "floor", 5) == 0) {
-      float f = atof(args + 5);
-      if (f < 0 || f > 1) { snprintf(reply, cap, "Err - floor 0..1"); return; }
+      char* e; const char* p = args + 5;
+      float f = strtof(p, &e);
+      if (e == p || f < 0 || f > 1) { snprintf(reply, cap, "Err - lodestar floor <0..1>"); return; }   // a missing number is an error, not 0
       cfg.floor_score = f; _eval_valid = false;
       snprintf(reply, cap, "OK - floor %.2f", (double)f);
     } else if (strncmp(args, "cancel", 6) == 0) {
