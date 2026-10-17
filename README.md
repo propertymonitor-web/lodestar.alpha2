@@ -8,9 +8,23 @@ A repeater that is moving needs to think differently from one bolted to a tower.
 
 It is free, open, and built for the **Heltec WiFi LoRa 32 V4 R2** (ESP32-S3R2, OLED).
 
+**At a glance**
+
+- **Who it is for:** anyone running a MeshCore repeater that *moves*: in a vehicle, on a boat, on foot. A fixed repeater whose neighbours never change has less to gain.
+- **What it adds to the stock MeshCore repeater:** a live ranking of the repeaters it can hear, used to decide *when* to forward and when to drop a duplicate copy. Everything else is stock MeshCore.
+- **What it will not do:** stop forwarding, pick a single "next hop", or read your messages. See the [honest limits](#why-it-makes-a-good-mobile-repeater).
+
 > **Hardware check before you flash.** Heltec sells the V4 in two versions: **V4 R2** (ESP32-S3R2, 2 MB PSRAM) and **V4-R8** (ESP32-S3R8, 8 MB PSRAM). **This firmware is for the R2 only.** The two boards use different pins for GPS, the LED and external power, so an R2 image on an R8 can leave the GPS unpowered or misbehave. Check the MCU option on your order or listing before flashing. If you have an R8, do not use this build yet.
 
 > **Status: field-test release.** The firmware compiles, and the scoring logic is covered by automated tests, but it is new. That is why this README has a testing section. Your drive logs are exactly what will make it better.
+
+## Quick start
+
+1. **Check the board.** It must be a Heltec WiFi LoRa 32 **V4 R2** (see the hardware check above).
+2. **Get the firmware.** Download `firmware-merged.bin` from this repository's **Releases** page, or [build your own](#build-it-yourself-custom-splash-text-or-a-newer-meshcore).
+3. **Flash it** at https://flasher.meshcore.io using Chrome or Edge ([step by step](#flashing-with-the-meshcore-web-flasher)).
+4. **Set it up.** Open a serial terminal at 115200 baud, then set a name, your local mesh's radio settings and a new admin password ([first-time setup](#first-time-setup)).
+5. **Watch it work.** Type `lodestar`. Give it a few minutes of adverts and traffic first.
 
 ---
 
@@ -131,7 +145,18 @@ The finished files are in `MeshCore/.pio/build/heltec_v4_repeater/`: `firmware-m
 5. Start the flash and wait for it to finish. Do not unplug the board while it is writing.
 6. The board reboots. You should see the **LODESTAR / BY / FEAR REACTIVE** splash for 5 seconds, then the normal repeater screen.
 
-**If the port will not connect:** hold the board's **PRG / BOOT** button while plugging in the USB cable, then try again. If it still will not connect, try a different cable or USB port.
+**If the port will not connect:** put the board in **bootloader mode** (Heltec's documented method): with the USB cable connected, hold **PRG**, tap **RST** once, then release **PRG**. Then try again. Holding PRG while plugging in the cable also works on many boards. If it still will not connect, try a different cable or USB port, and see [Troubleshooting](#troubleshooting) for operating-system notes. When the flash finishes, press **RST** (or unplug and replug) to restart the board.
+
+### Flashing with PlatformIO (if you build on your own computer)
+
+The web flasher is the simplest route. If you built the firmware yourself with the [steps above](#build-it-on-your-own-computer), you can upload straight from the MeshCore folder instead. Put the board in bootloader mode (see above), then:
+
+```
+cd MeshCore
+pio run -t upload -e heltec_v4_repeater
+```
+
+Restart the board when it finishes. To talk to it afterwards, use `pio device monitor -b 115200`. Only one program can use the serial port at a time, so close the monitor (and any browser tab using the flasher) before uploading again.
 
 **First flash vs update:** use `firmware-merged.bin` for a first flash. If the flasher offers an *erase* option, erasing wipes the node's stored identity and settings, so only do that if you want a clean start. For later updates you can usually flash over the top and keep your settings.
 
@@ -139,14 +164,28 @@ The finished files are in `MeshCore/.pio/build/heltec_v4_repeater/`: `firmware-m
 
 ## First-time setup
 
-Open a serial terminal to the board (the flasher's console, or any terminal at 115200 baud), then configure it like any MeshCore repeater. Type `help` for the full list; the usual first steps are:
+Open a serial terminal to the board (the flasher's console, `pio device monitor -b 115200`, or any terminal at 115200 baud), then configure it like any MeshCore repeater. Type `help` for the full list; the usual first steps are:
 
 - Give it a recognisable **name** so other nodes can identify it, for example `set name FR-Lodestar-1`.
-- Set the **radio parameters** (frequency, bandwidth, spreading factor, coding rate) to match your local mesh. **Use the settings your local community uses, or a private channel for testing.**
-- Change the **admin password** from the default.
+- Set the **radio parameters** (frequency, bandwidth, spreading factor, coding rate) to match your local mesh, in the form `set radio <MHz>,<bandwidth kHz>,<SF>,<CR>`. The node answers `OK - reboot to apply`, so type `reboot` afterwards. **Use the settings your local community uses, or a private channel for testing.**
+- Change the **admin password** from the default (`password <new password>`).
 - Send an **advert** (`advert`) so nearby repeaters learn you exist.
 
 **Do not skip the radio settings.** LODESTAR needs to hear the same repeaters your community uses.
+
+That is everything you need to do on the board. The scripts in `tools/` run on your computer *before* you build; there is nothing to run from them after flashing.
+
+### What you can customise, and where
+
+| What | How | Kept after a reboot? |
+| --- | --- | --- |
+| Node name, radio settings, admin password | MeshCore serial commands (`help` lists them all) | Yes, MeshCore saves them |
+| Uplink scoring: weights, floor, duplicate cancel | `lodestar weights`, `lodestar floor`, `lodestar cancel` (see [Commands](#commands)) | **No.** Defaults return at every start |
+| GPS | `gps on` / `gps off`, then `lodestar gps` to read it | Yes, `gps on` / `gps off` is saved |
+| Boot splash: text, seconds, logo | `tools/make_splash.py` on your computer, or the text boxes in the Actions form | It is part of the firmware, so reflash to change it |
+| Patching LODESTAR onto MeshCore | `tools/apply_lodestar.py`, done for you by the Actions build | Build step only |
+
+**Splash options** (`tools/make_splash.py`). Up to 3 lines of text, plain letters, numbers and punctuation only (use `-` for a blank line). `--seconds` is 1 to 30. For a logo, add `--logo path/to/image.png`: any PNG, JPG, GIF, BMP or WEBP is converted to a 1-bit picture for the 128×64 screen. If it comes out inverted add `--invert true`, and `--threshold` (1 to 99, default 20) makes a logo bolder when lower. Always look at the `--preview` image before flashing. The Actions form has no logo option, so use the local build for a logo.
 
 ---
 
@@ -236,7 +275,12 @@ Please note your radio settings, spreading factor, location type (city, rural, h
 
 | Problem | Try |
 | --- | --- |
-| Flasher cannot see the board | Use Chrome or Edge, a data cable, a different port, and the PRG / BOOT button trick above |
+| Flasher cannot see the board | Use Chrome or Edge, a data cable (not charge-only), a different port, and bootloader mode (hold PRG, tap RST, release PRG) as described under [Flashing](#flashing-with-the-meshcore-web-flasher) |
+| "Port busy", or the browser cannot open the port | Only one program can use the serial port. Close other serial monitors, the PlatformIO monitor, and other browser tabs using the flasher, then unplug and replug |
+| **Linux:** no port in the list, or "permission denied" | Your user needs access to the port. Check which group owns it (`ls -l /dev/ttyACM0` or `/dev/ttyUSB0`), usually `dialout` (`uucp` on Arch), then `sudo usermod -aG dialout $USER` and log out and back in. On some systems ModemManager grabs new serial devices, so if the port vanishes right after plugging in, stop that service while flashing |
+| **macOS:** no port in the list | Try another cable and port. Most boards need no driver. If yours uses a Silicon Labs USB chip, install Silicon Labs' CP210x driver |
+| **Windows:** no COM port, or an unknown device in Device Manager | Try another cable and port. Windows 10 and 11 usually recognise the board by themselves. If yours uses a Silicon Labs USB chip, install Silicon Labs' CP210x driver |
+| Flash fails part-way | Use a better USB cable, plug straight into the computer rather than a hub, put the board in bootloader mode, and try again |
 | Table is empty | Make sure the radio settings match your mesh, wait for adverts, and run `advert` |
 | Scores look odd right after boot | Normal. Give it several minutes to build history |
 | Everything is ranked low | Check the antenna, the radio settings, and your spreading factor |
