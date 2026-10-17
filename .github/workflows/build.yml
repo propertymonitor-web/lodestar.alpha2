@@ -39,6 +39,7 @@ on:
         type: choice
         options:
           - heltec_v4_repeater
+          - Xiao_S3_WIO_repeater
       publish:
         description: "Publish the result as a GitHub Release anyone can download"
         default: false
@@ -172,12 +173,20 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ inputs.release_tag }}
+          FW_ENV: ${{ inputs.env }}
         run: |
           MC=$(cut -c1-10 out/meshcore_commit.txt)
-          NOTES="LODESTAR mobile-repeater firmware for the Heltec WiFi LoRa 32 V4 R2 (ESP32-S3R2, OLED), by FEAR REACTIVE. Not for the V4-R8. Alpha test build on MeshCore commit $MC.
+          if [ "$FW_ENV" = "Xiao_S3_WIO_repeater" ]; then
+            BOARD="the Seeed Studio XIAO ESP32S3 with the Wio-SX1262 kit (no screen, no GPS)"
+          else
+            BOARD="the Heltec WiFi LoRa 32 V4 R2 (ESP32-S3R2, OLED). Not for the V4-R8"
+          fi
+          NOTES="LODESTAR mobile-repeater firmware for $BOARD, by FEAR REACTIVE. Alpha test build ($FW_ENV) on MeshCore commit $MC.
 
           Download firmware-merged.bin and flash it at https://flasher.meshcore.io (Custom Firmware). firmware.bin is the application-only image for updating an existing install. See the README for setup and testing notes."
           # Always a new release (the tag was checked before the build). If the tag appeared
           # in the meantime this fails rather than overwriting anything.
-          gh release create "$TAG" out/firmware-merged.bin out/firmware.bin out/splash_preview.png \
+          FILES="out/firmware-merged.bin out/firmware.bin"
+          [ "$FW_ENV" = "Xiao_S3_WIO_repeater" ] || FILES="$FILES out/splash_preview.png"   # no screen on the XIAO, so no splash to preview
+          gh release create "$TAG" $FILES \
             --target "$GITHUB_SHA" --title "LODESTAR $TAG" --notes "$NOTES" --prerelease

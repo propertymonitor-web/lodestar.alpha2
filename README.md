@@ -2,11 +2,11 @@
 
 ### Mobile-repeater firmware for MeshCore, by FEAR REACTIVE
 
-**Version v0.1.0-alpha** (alpha test release, **Heltec WiFi LoRa 32 V4 R2 only**)
+**Version v0.1.0-alpha** (alpha test release). **Boards:** Heltec WiFi LoRa 32 **V4 R2** (with screen) and Seeed Studio **XIAO ESP32S3 + Wio-SX1262 kit** (no screen). See [supported boards](#supported-boards).
 
 A repeater that is moving needs to think differently from one bolted to a tower. The tower never changes its neighbours. A vehicle, a hiker, or a boat is constantly gaining and losing them. LODESTAR is MeshCore repeater firmware with a built-in sense of *which repeaters around it are actually worth relying on right now*, and it uses that to forward traffic more intelligently.
 
-It is free, open, and built for the **Heltec WiFi LoRa 32 V4 R2** (ESP32-S3R2, OLED).
+It is free, open, and built for the **Heltec WiFi LoRa 32 V4 R2** (ESP32-S3R2, OLED) and, as a screenless option, the **Seeed Studio XIAO ESP32S3 + Wio-SX1262 kit**.
 
 **At a glance**
 
@@ -20,9 +20,18 @@ It is free, open, and built for the **Heltec WiFi LoRa 32 V4 R2** (ESP32-S3R2, O
 
 > **Status: field-test release.** The firmware builds from the Actions tab, and the scoring logic is covered by automated tests that run on every push, but it is new. That is why this README has a testing section. Your drive logs are exactly what will make it better.
 
+## Supported boards
+
+| Board | Build name | Screen | GPS | Notes |
+|---|---|---|---|---|
+| Heltec WiFi LoRa 32 **V4 R2** | `heltec_v4_repeater` | 128x64 OLED with the LODESTAR splash | Optional (`gps on`) | The main target. Not for the V4-R8 |
+| Seeed Studio **XIAO ESP32S3 + Wio-SX1262 kit** | `Xiao_S3_WIO_repeater` | None | None (MeshCore does not enable GPS on this board) | New, **alpha, not yet run on a real board by the author**. Everything is done from the serial console or the MeshCore app |
+
+**On the XIAO:** LODESTAR's scoring, settings and `lodestar` commands work exactly as on the Heltec. Differences: there is no screen, so the splash options in the build form do nothing and no splash preview is attached; there is no GPS, so `lodestar gps` reports no fix (LODESTAR does not need one); and you read the table from the serial console (115200 baud) or by logging in to the repeater from the MeshCore app. To flash it, plug it in with a USB data cable, then hold **BOOT**, tap **RESET**, release **BOOT** if the flasher cannot see the board, and use the same [web flasher](#flashing-with-the-meshcore-web-flasher) with `firmware-merged.bin`. Attach the antenna to the Wio-SX1262 before powering it. The default admin password is `password`: change it first.
+
 ## Quick start
 
-1. **Check the board.** It must be a Heltec WiFi LoRa 32 **V4 R2** (see the hardware check above).
+1. **Check the board.** A Heltec WiFi LoRa 32 **V4 R2** (see the hardware check above) or a Seeed Studio XIAO ESP32S3 with the Wio-SX1262 kit (see [supported boards](#supported-boards)).
 2. **Get the firmware.** Download `firmware-merged.bin` from this repository's [Releases page](https://github.com/propertymonitor-web/lodestar.alpha2/releases), or [build your own](#build-it-yourself-custom-splash-text-or-a-newer-meshcore).
 3. **Flash it** at https://flasher.meshcore.io using Chrome or Edge ([step by step](#flashing-with-the-meshcore-web-flasher)).
 4. **Set it up.** Open a serial terminal (the console on the flasher page works, or any serial program at 115200 baud). **Set a new admin password first**, then a name and your local mesh's radio settings ([first-time setup](#first-time-setup)).
