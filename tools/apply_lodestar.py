@@ -98,6 +98,35 @@ GPS_FEED = r'''#if ENV_INCLUDE_GPS == 1
 #endif
 '''
 
+LOAD_SETTINGS = r'''  {  // --- Lodestar: restore saved settings (if any); anything invalid is ignored ---
+    char ls_buf[128];
+    File ls_f = _fs->open("/lodestar.cfg");
+    if (ls_f) {
+      int ls_n = ls_f.read((uint8_t*)ls_buf, sizeof(ls_buf) - 1);
+      ls_f.close();
+      if (ls_n > 0) { ls_buf[ls_n] = 0; lodestar.loadSettings(ls_buf); }
+    }
+  }
+'''
+
+SAVE_SETTINGS = r'''  if (lodestar.settings_dirty) {   // --- Lodestar: a setting changed, so write it to flash (rare) ---
+    lodestar.settings_dirty = false;
+    char ls_buf[128];
+    size_t ls_n = lodestar.saveSettings(ls_buf, sizeof(ls_buf));
+    if (ls_n > 0) {
+#if defined(NRF52_PLATFORM) || defined(STM32_PLATFORM)
+      _fs->remove("/lodestar.cfg");
+      File ls_f = _fs->open("/lodestar.cfg", FILE_O_WRITE);
+#elif defined(RP2040_PLATFORM)
+      File ls_f = _fs->open("/lodestar.cfg", "w");
+#else
+      File ls_f = _fs->open("/lodestar.cfg", "w", true);
+#endif
+      if (ls_f) { ls_f.write((const uint8_t*)ls_buf, ls_n); ls_f.close(); }
+    }
+  }
+'''
+
 SERIAL_PRINT = r'''static void lodestarSerialPrint(const char* line) {
   Serial.println(line);
 }
@@ -166,19 +195,14 @@ def main():
     # 5. housekeeping, and the GPS fix (sensors.loop() in main.cpp keeps the GPS parsed)
     cpp = patch_once(
         cpp, r"(  mesh::Mesh::loop\(\);\n)",
-        lambda m: m.group(1) + "  lodestar.loop(millis());\n" + GPS_FEED, "Mesh::loop call in MyMesh::loop")
+        lambda m: m.group(1) + "  lodestar.loop(millis());\n" + SAVE_SETTINGS + GPS_FEED, "Mesh::loop call in MyMesh::loop")
 
-    # 5b. GPS on by default. A moving node needs to know where it is. Upstream already
-    # compiles the Heltec V4 GPS in (ENV_INCLUDE_GPS) but ships it switched off. This only
-    # changes the default for a fresh install: saved settings still win, so a node that
-    # already stored "gps off" needs `gps on` once. Who sees the position is untouched
-    # (advert_loc_policy stays upstream's default, which does not share the live fix).
+    # 5b. keep Lodestar's settings across reboots: load once at start-up, save when changed
     cpp = patch_once(
-        cpp, r"(  _prefs\.gps_enabled = )0;",
-        lambda m: m.group(1) + "1;   // Lodestar: GPS on by default",
-        "GPS default in MyMesh constructor")
+        cpp, r"(  _cli\.loadPrefs\(_fs\);\n)",
+        lambda m: m.group(1) + LOAD_SETTINGS, "loadPrefs call in MyMesh::begin")
 
-    # 6. serial / remote CLI:  lodestar [table|gps|weights r l h|floor f|cancel on|off|f|on|off|reset]
+    # 6. serial / remote CLI:  lodestar [table|gps|weights r l h|floor f|cancel on|off|f|on|off|defaults|reset]
     cpp = patch_once(
         cpp, r"(void MyMesh::handleCommand\(uint32_t sender_timestamp, char \*command, char \*reply\) \{\n)",
         lambda m: SERIAL_PRINT + m.group(1), "handleCommand")
@@ -197,7 +221,7 @@ def main():
     print("Lodestar applied:")
     print(f"  + {os.path.relpath(dest, root)}")
     print(f"  ~ {os.path.relpath(h_path, root)}  (include + member)")
-    print(f"  ~ {os.path.relpath(c_path, root)}  (rx/tx observe, advert feed, delay scaling, loop, GPS, CLI)")
+    print(f"  ~ {os.path.relpath(c_path, root)}  (rx/tx observe, advert feed, delay scaling, loop, saved settings, GPS, CLI)")
 
 
 if __name__ == "__main__":

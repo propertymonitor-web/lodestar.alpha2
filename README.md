@@ -42,7 +42,7 @@ It is free, open, and built for the **Heltec WiFi LoRa 32 V4 R2** (ESP32-S3R2, O
 - **Staleness decay.** A repeater you drove away from fades out of the ranking gracefully and is dropped after 30 minutes.
 - **Safe fallback.** No usable uplink in range? LODESTAR behaves exactly like the stock MeshCore repeater.
 - **Built-in table.** One serial command, `lodestar`, shows you what the node sees.
-- **Knows where it is.** LODESTAR tracks its own fix, speed and heading (`lodestar gps`). For now this is display only: no forwarding decision uses it yet. GPS is **on by default**, which has privacy consequences, so read [GPS and position](#gps-and-position) and set your admin password first.
+- **Knows where it is.** LODESTAR tracks its own fix, speed and heading (`lodestar gps`). For now this is display only: no forwarding decision uses it yet. GPS is **off until you switch it on** (`gps on`), because some V4 R2 boards ship with a GNSS module and some do not. See [GPS and position](#gps-and-position).
 - **Custom splash.** Boots to a centered LODESTAR / BY / FEAR REACTIVE screen.
 - **Everything else is stock MeshCore.** Admin login, regions, CLI, OTA, adverts: the repeater you know, plus the brain.
 
@@ -168,7 +168,7 @@ Restart the board when it finishes. To talk to it afterwards, use `pio device mo
 
 Open a serial terminal to the board (the flasher's console, `pio device monitor -b 115200`, or any terminal at 115200 baud), then configure it like any MeshCore repeater. Type `help` for the full list; the usual first steps are:
 
-- **First, change the admin password** from the default (`password <new password>`). With GPS on by default, anyone who knows the default can read the node's live position.
+- **First, change the admin password** from the default (`password <new password>`). Anyone who knows the default can log in as admin, and if you later turn GPS on, read the node's live position.
 - Give it a recognisable **name** so other nodes can identify it, for example `set name FR-Lodestar-1`.
 - Set the **radio parameters** (frequency, bandwidth, spreading factor, coding rate) to match your local mesh, in the form `set radio <MHz>,<bandwidth kHz>,<SF>,<CR>`. The node answers `OK - reboot to apply`, so type `reboot` afterwards. **Use the settings your local community uses, or a private channel for testing.**
 - Send an **advert** (`advert`) so nearby repeaters learn you exist.
@@ -182,8 +182,8 @@ That is everything you need to do on the board. The scripts in `tools/` run on y
 | What | How | Kept after a reboot? |
 | --- | --- | --- |
 | Node name, radio settings, admin password | MeshCore serial commands (`help` lists them all) | Yes, MeshCore saves them |
-| Uplink scoring: weights, floor, duplicate cancel | `lodestar weights`, `lodestar floor`, `lodestar cancel` (see [Commands](#commands)) | Survives loss of outside power if a battery keeps the board running. **Not** a reboot: defaults return then ([details](#commands)) |
-| GPS | `gps on` / `gps off`, then `lodestar gps` to read it | Yes, `gps on` / `gps off` is saved |
+| Uplink scoring: on/off, weights, floor, duplicate cancel | `lodestar on` / `off`, `weights`, `floor`, `cancel` (see [Commands](#commands)) | Yes, saved to the board's flash the moment you change them |
+| GPS (off by default) | `gps on` / `gps off`, then `lodestar gps` to read it | Yes, saved by MeshCore |
 | Boot splash: text, seconds, logo | `tools/make_splash.py` on your computer, or the text boxes in the Actions form | It is part of the firmware, so reflash to change it |
 | Patching LODESTAR onto MeshCore | `tools/apply_lodestar.py`, done for you by the Actions build | Build step only |
 
@@ -226,13 +226,14 @@ The summary line reports the best uplink, how many repeaters are heard, the curr
 | `lodestar cancel on` / `off` / `F` | Turn duplicate-cancel on or off, or set its minimum score. Default on, `0.60` |
 | `lodestar off` / `on` | Fall back to stock forwarding, or re-enable LODESTAR |
 | `lodestar gps` | Show GPS status: fix, satellites, moving or stopped, speed and heading |
-| `lodestar reset` | Clear the uplink table |
+| `lodestar defaults` | Put weights, floor and cancel back to the defaults, and turn LODESTAR on |
+| `lodestar reset` | Clear the uplink table (settings are kept) |
 
-**Do the scoring settings survive?** LODESTAR's own settings (weights, floor, cancel, `lodestar off`) and its uplink table live in memory, not in flash. On a **Heltec V4 R2 with a battery fitted**, losing outside power (unplugging USB, switching off the vehicle) does not clear them, because the battery keeps the board running. Anything that actually restarts the board does clear them: `reboot`, pressing RST, reflashing, or a flat battery. LODESTAR then starts with its defaults. MeshCore's own settings (name, radio, password, `gps on` / `gps off`) are saved in flash and always survive.
+**Settings are remembered.** Any `lodestar` setting you change (on/off, weights, floor, cancel) is saved to the board's flash straight away and restored at every start, so it survives reboots, reflashing the same firmware, and power loss, with or without a battery. `lodestar defaults` puts everything back to the factory values. The uplink table itself is not saved: it is rebuilt from what the node hears, so give it a few minutes after a restart. Settings are kept in their own small file, so erasing the board's flash (the flasher's *erase* option) removes them.
 
 ### GPS and position
 
-The Heltec V4 firmware in MeshCore already supports the board's GNSS connector; stock repeaters just ship with it switched off. LODESTAR switches it **on by default** and reads the fix.
+The Heltec V4 firmware in MeshCore already supports the board's GNSS connector; and LODESTAR leaves it exactly as MeshCore ships it: **off**. Many V4 R2 boards come with a GNSS module fitted, so if yours does, turn it on once with `gps on` (MeshCore remembers it). LODESTAR then reads the fix.
 
 ```
 GPS: fix, 9 sats, moving 54 km/h, course 0
@@ -241,15 +242,13 @@ pos 32.751485,-97.330000 sats 9 fix age 1s speed 15.0 m/s course 0
 
 - The first line is the command's reply. The second line (with coordinates) prints on the **local serial port only**. A reply can travel over the mesh to a remote admin, so it never contains your position.
 - Speed and heading are worked out from successive fixes (speed over about 3 seconds, heading after at least 8 m of travel). A parked node, wobbling a couple of metres, is reported as stopped.
-- **Privacy: read this before you drive.** Turning GPS on means the node knows where it is, and **anyone who logs in as admin can ask the node for its live position** (MeshCore's telemetry request). The default admin password is the word `password`, so **change it first** (`password <new password>`) and do not share it. Guests cannot read the position. Adverts keep using the location stored in the repeater's settings, not the live fix, unless you run `gps advert share`, which broadcasts it; LODESTAR leaves that alone. Two commands to know: `gps setloc` copies the live fix into the stored location that adverts then announce, so do not run it somewhere you do not want to be found. To switch tracking off, run `gps off`.
-- **Shipping with GPS off instead.** If you build your own firmware and want GPS off by default, change the `1;` back to `0;` in patch 5b of `tools/apply_lodestar.py`.
-- **Already used this node?** The default only applies to fresh installs. If the node saved `gps off` earlier, run `gps on` once; it is remembered. `gps` shows the hardware state and `gps diag` shows more detail. These are MeshCore commands.
-- The GPS needs a clear view of the sky. After a cold start, allow a few minutes for the first fix.
+- **Privacy: read this before you drive.** Once you turn GPS on, the node knows where it is, and **anyone who logs in as admin can ask the node for its live position** (MeshCore's telemetry request). The default admin password is the word `password`, so **change it first** (`password <new password>`) and do not share it. Guests cannot read the position. Adverts keep using the location stored in the repeater's settings, not the live fix, unless you run `gps advert share`, which broadcasts it; LODESTAR leaves that alone. Two commands to know: `gps setloc` copies the live fix into the stored location that adverts then announce, so do not run it somewhere you do not want to be found. To switch tracking off, run `gps off`.
+- **Turning it on.** Run `gps on`, then `gps` to see the hardware state and `gps diag` for detail. These are MeshCore commands. If `gps on` says `gps toggle not found`, no GNSS module was detected at boot (see Troubleshooting).- The GPS needs a clear view of the sky. After a cold start, allow a few minutes for the first fix.
 
 ### Getting the most out of it
 
 - **Mount the antenna well.** A good antenna with a clear view matters far more than any firmware. On a vehicle, put it on the roof or high on the glass, away from metal that shadows it.
-- **Give it steady power.** A vehicle USB supply or a decent battery pack. A fitted battery rides through short power cuts; a brown-out or flat battery reboots the node and clears its LODESTAR table and settings.
+- **Give it steady power.** A vehicle USB supply or a decent battery pack. A fitted battery rides through short power cuts. A brown-out or flat battery restarts the node, which clears the uplink table (your settings are kept).
 - **Let it warm up.** The table needs a few minutes of adverts and traffic before the scores mean much. Reliability numbers firm up as it collects implicit ACKs.
 - **Match your community's radio settings** exactly, or it will not hear anyone.
 - **Do not stack mobile repeaters in the same spot.** One well-placed mobile repeater helps; five in a convoy mostly add noise.
@@ -288,7 +287,7 @@ Please note your radio settings, spreading factor, location type (city, rural, h
 | Scores look odd right after boot | Normal. Give it several minutes to build history |
 | Everything is ranked low | Check the antenna, the radio settings, and your spreading factor |
 | `lodestar gps` says `no fix` | Give it a clear view of the sky and a few minutes. Check that a GNSS module is plugged in, and run `gps` and `gps diag` |
-| `gps on` says `gps toggle not found`, or GPS stays off | No GNSS module was detected at boot (MeshCore only looks for one during start-up), or the node saved `gps off` earlier. Check the module, reboot, then run `gps on` |
+| `gps on` says `gps toggle not found`, or GPS stays off | No GNSS module was detected at boot (MeshCore only looks for one during start-up), or the node has `gps off` saved. Check the module, reboot, then run `gps on` |
 | Board will not boot, or the GPS never powers up | Check you have a V4 **R2**. This build is not for the V4-R8. To recover a board that will not boot, hold PRG, tap RST, release PRG, then reflash |
 | You want stock behaviour | `lodestar off` |
 | Splash still shows the old text | You flashed the wrong file; rebuild and flash `firmware-merged.bin` |

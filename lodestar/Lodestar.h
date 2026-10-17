@@ -366,6 +366,31 @@ public:
     return true;
   }
 
+  // ---- saving settings across reboots --------------------------------------
+  // The glue stores this one line in a file and hands it back at start-up. Only the
+  // settings a person can change are saved; the uplink table is rebuilt from what is heard.
+  bool settings_dirty = false;   // set by any command that changes a setting; the glue clears it after saving
+
+  size_t saveSettings(char* out, size_t cap) const {
+    int n = snprintf(out, cap, "LODESTAR1 %d %.4f %.4f %.4f %.4f %d %.4f\n", cfg.enabled ? 1 : 0,
+                     (double)cfg.w_rel, (double)cfg.w_lq, (double)cfg.w_hop, (double)cfg.floor_score,
+                     cfg.cancel_dup ? 1 : 0, (double)cfg.cancel_min);
+    return (n < 0 || (size_t)n >= cap) ? 0 : (size_t)n;
+  }
+
+  // Returns false (and changes nothing) if the text is not a valid settings line.
+  bool loadSettings(const char* text) {
+    int en, cd; float wr, wl, wh, fl, cm; char tag[16];
+    if (!text || sscanf(text, "%15s %d %f %f %f %f %d %f", tag, &en, &wr, &wl, &wh, &fl, &cd, &cm) != 8) return false;
+    if (strcmp(tag, "LODESTAR1") != 0 || (en != 0 && en != 1) || (cd != 0 && cd != 1)) return false;
+    if (!(wr >= 0 && wl >= 0 && wh >= 0 && wr + wl + wh > 0.5f && wr + wl + wh < 1.5f)) return false;
+    if (!(fl >= 0 && fl <= 1 && cm > 0 && cm <= 1)) return false;
+    cfg.enabled = en == 1; cfg.w_rel = wr; cfg.w_lq = wl; cfg.w_hop = wh;
+    cfg.floor_score = fl; cfg.cancel_dup = cd == 1; cfg.cancel_min = cm;
+    _eval_valid = false;
+    return true;
+  }
+
   // "lodestar ..." command handler. `args` is the text after the word "lodestar".
   // `print` receives full table lines (serial); `reply` gets a one-line answer.
   void runCommand(const char* args, char* reply, size_t cap, uint32_t now, void (*print)(const char*)) {
@@ -386,32 +411,38 @@ public:
       if (r < 0 || l < 0 || h < 0 || (r + l + h) <= 0) { snprintf(reply, cap, "Err - weights must be >= 0"); return; }
       float s = r + l + h;
       cfg.w_rel = r / s; cfg.w_lq = l / s; cfg.w_hop = h / s;
-      _eval_valid = false;
+      _eval_valid = false; settings_dirty = true;
       snprintf(reply, cap, "OK - weights rel %.2f lq %.2f hop %.2f", (double)cfg.w_rel, (double)cfg.w_lq, (double)cfg.w_hop);
     } else if (strncmp(args, "floor", 5) == 0) {
       char* e; const char* p = args + 5;
       float f = strtof(p, &e);
       if (e == p || f < 0 || f > 1) { snprintf(reply, cap, "Err - lodestar floor <0..1>"); return; }   // a missing number is an error, not 0
-      cfg.floor_score = f; _eval_valid = false;
+      cfg.floor_score = f; _eval_valid = false; settings_dirty = true;
       snprintf(reply, cap, "OK - floor %.2f", (double)f);
     } else if (strncmp(args, "cancel", 6) == 0) {
       const char* a = args + 6; while (*a == ' ') a++;
       if (strncmp(a, "off", 3) == 0) cfg.cancel_dup = false;
       else if (strncmp(a, "on", 2) == 0) cfg.cancel_dup = true;
       else if (*a) { float f = atof(a); if (f <= 0 || f > 1) { snprintf(reply, cap, "Err - cancel on|off|0..1"); return; } cfg.cancel_min = f; cfg.cancel_dup = true; }
+      settings_dirty = true;
       snprintf(reply, cap, "OK - cancel %s min %.2f", cfg.cancel_dup ? "on" : "off", (double)cfg.cancel_min);
     } else if (strncmp(args, "gps", 3) == 0) {
       gpsStatus(reply, cap, now);
       char line[128];
       if (print && gpsDetail(line, sizeof(line), now)) print(line);   // coordinates: serial only
     } else if (strncmp(args, "off", 3) == 0) {
-      cfg.enabled = false; snprintf(reply, cap, "OK - Lodestar off (stock forwarding)");
+      cfg.enabled = false; settings_dirty = true; snprintf(reply, cap, "OK - Lodestar off (stock forwarding)");
     } else if (strncmp(args, "on", 2) == 0) {
-      cfg.enabled = true; snprintf(reply, cap, "OK - Lodestar on");
+      cfg.enabled = true; settings_dirty = true; snprintf(reply, cap, "OK - Lodestar on");
+    } else if (strncmp(args, "defaults", 8) == 0) {
+      Config d; cfg.enabled = d.enabled; cfg.w_rel = d.w_rel; cfg.w_lq = d.w_lq; cfg.w_hop = d.w_hop;
+      cfg.floor_score = d.floor_score; cfg.cancel_dup = d.cancel_dup; cfg.cancel_min = d.cancel_min;
+      _eval_valid = false; settings_dirty = true;
+      snprintf(reply, cap, "OK - settings back to defaults");
     } else if (strncmp(args, "reset", 5) == 0) {
       Config keep = cfg; reset(); cfg = keep; snprintf(reply, cap, "OK - uplink table cleared");
     } else {
-      snprintf(reply, cap, "lodestar [table|gps|weights r l h|floor f|cancel on|off|f|on|off|reset]");
+      snprintf(reply, cap, "lodestar [table|gps|weights r l h|floor f|cancel on|off|f|on|off|defaults|reset]");
     }
   }
 

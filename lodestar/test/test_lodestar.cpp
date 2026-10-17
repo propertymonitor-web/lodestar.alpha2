@@ -362,6 +362,33 @@ int main() {
     L.runCommand(" floor 0", r, sizeof(r), t, pr);     CHECK(strncmp(r, "OK", 2) == 0 && L.cfg.floor_score == 0.0f);   // an explicit 0 is still allowed
   }
 
+  // 28. settings round-trip through saveSettings/loadSettings; bad text is rejected and changes nothing
+  {
+    Lodestar A; char r[160]; char buf[160]; uint32_t t = 100000;
+    CHECK(!A.settings_dirty);
+    A.runCommand(" weights 1 1 2", r, sizeof(r), t, pr);  CHECK(A.settings_dirty);
+    A.settings_dirty = false;
+    A.runCommand(" table", r, sizeof(r), t, pr);          CHECK(!A.settings_dirty);   // reading changes nothing
+    A.runCommand(" floor abc", r, sizeof(r), t, pr);      CHECK(!A.settings_dirty);   // a rejected command changes nothing
+    A.runCommand(" floor 0.4", r, sizeof(r), t, pr);
+    A.runCommand(" cancel 0.8", r, sizeof(r), t, pr);
+    A.runCommand(" off", r, sizeof(r), t, pr);
+    size_t n = A.saveSettings(buf, sizeof(buf));
+    CHECK(n > 0);
+    Lodestar B;
+    CHECK(B.loadSettings(buf));
+    CHECK(!B.cfg.enabled && B.cfg.cancel_dup && fabsf(B.cfg.cancel_min - 0.8f) < 1e-3f);
+    CHECK(fabsf(B.cfg.floor_score - 0.4f) < 1e-3f && fabsf(B.cfg.w_hop - 0.5f) < 1e-3f && fabsf(B.cfg.w_rel - 0.25f) < 1e-3f);
+    Lodestar C;
+    CHECK(!C.loadSettings("") && !C.loadSettings("garbage") && !C.loadSettings("LODESTAR2 1 .5 .3 .2 .25 1 .6")
+          && !C.loadSettings("LODESTAR1 1 .5 .3 .2 7 1 .6") && !C.loadSettings("LODESTAR1 1 -1 .3 .2 .25 1 .6")
+          && !C.loadSettings("LODESTAR1 1 0 0 0 .25 1 .6") && !C.loadSettings("LODESTAR1 1 .5 .3 .2 .25 1 0"));
+    CHECK(C.cfg.enabled && fabsf(C.cfg.floor_score - 0.25f) < 1e-4f);   // still the defaults
+    n = A.saveSettings(buf, 10);  CHECK(n == 0);                         // too small a buffer: nothing written
+    A.runCommand(" defaults", r, sizeof(r), t, pr);
+    CHECK(strncmp(r, "OK", 2) == 0 && A.cfg.enabled && fabsf(A.cfg.floor_score - 0.25f) < 1e-4f && A.settings_dirty);
+  }
+
   printf(fails ? "\n%d FAILED\n" : "\nall tests passed\n", fails);
   return fails ? 1 : 0;
 }
