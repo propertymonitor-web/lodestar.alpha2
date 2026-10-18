@@ -25,6 +25,7 @@ It is free, open, and built for the **Heltec WiFi LoRa 32 V4 R2** (ESP32-S3R2, O
 | Board | Build name | Screen | GPS | Notes |
 |---|---|---|---|---|
 | Heltec WiFi LoRa 32 **V4 R2** | `heltec_v4_repeater` | 128x64 OLED with the LODESTAR splash | Optional (`gps on`) | The main target. Not for the V4-R8 |
+| Seeed Studio **SenseCAP Solar Node P1-Pro** (for MeshCore) | `SenseCap_Solar_repeater` | None | Built in (L76K); off until `gps on` | New, **alpha, not yet run on a real board by the author**. Solar-powered repeater hardware. Flash a `.uf2`: double-tap RST so a USB drive appears (Xiao-Boot or Solar Node), drag `firmware.uf2` onto it, and see [Seeed's guide](https://wiki.seeedstudio.com/get_started_with_meshcore_solar_node/) for its erase step. Do not power it off while it is transmitting or being configured |
 | Seeed Studio **XIAO nRF52840 + Wio-SX1262 kit** | `Xiao_nrf52_repeater` | None | None | New, **alpha, not yet run on a real board by the author**. Flash a `.uf2`: double-tap the reset button so a USB drive appears, then drag `firmware.uf2` onto it. Settings persist across updates the same way |
 | Seeed Studio **XIAO ESP32S3 + Wio-SX1262 kit** | `Xiao_S3_WIO_repeater` | None | None (MeshCore does not enable GPS on this board) | New, **alpha, not yet run on a real board by the author**. Everything is done from the serial console or the MeshCore app |
 
