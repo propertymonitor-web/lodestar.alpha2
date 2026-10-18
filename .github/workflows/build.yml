@@ -40,6 +40,7 @@ on:
         options:
           - heltec_v4_repeater
           - Xiao_S3_WIO_repeater
+          - Xiao_nrf52_repeater
       publish:
         description: "Publish the result as a GitHub Release anyone can download"
         default: false
@@ -144,7 +145,14 @@ jobs:
           FW_ENV: ${{ inputs.env }}
         run: |
           set -o pipefail
-          pio run -t mergebin -e "$FW_ENV" 2>&1 | tee ../build.log
+          case "$FW_ENV" in
+            *nrf52*)
+              # Nordic boards have no merged image: build, then make the .uf2 the board's bootloader reads
+              pio run -e "$FW_ENV" 2>&1 | tee ../build.log
+              python3 bin/uf2conv/uf2conv.py ".pio/build/$FW_ENV/firmware.hex" -c -o ".pio/build/$FW_ENV/firmware.uf2" -f 0xADA52840 2>&1 | tee -a ../build.log ;;
+            *)
+              pio run -t mergebin -e "$FW_ENV" 2>&1 | tee ../build.log ;;
+          esac
 
       - name: Show compile errors
         if: failure()
@@ -158,8 +166,14 @@ jobs:
           FW_ENV: ${{ inputs.env }}
         run: |
           mkdir out
-          cp "MeshCore/.pio/build/$FW_ENV/firmware-merged.bin" out/
-          cp "MeshCore/.pio/build/$FW_ENV/firmware.bin" out/
+          case "$FW_ENV" in
+            *nrf52*)
+              cp "MeshCore/.pio/build/$FW_ENV/firmware.uf2" out/
+              cp "MeshCore/.pio/build/$FW_ENV/firmware.zip" out/ 2>/dev/null || true ;;
+            *)
+              cp "MeshCore/.pio/build/$FW_ENV/firmware-merged.bin" out/
+              cp "MeshCore/.pio/build/$FW_ENV/firmware.bin" out/ ;;
+          esac
           cp splash_preview.png out/
           git -C MeshCore rev-parse HEAD > out/meshcore_commit.txt
 
@@ -176,17 +190,24 @@ jobs:
           FW_ENV: ${{ inputs.env }}
         run: |
           MC=$(cut -c1-10 out/meshcore_commit.txt)
-          if [ "$FW_ENV" = "Xiao_S3_WIO_repeater" ]; then
-            BOARD="the Seeed Studio XIAO ESP32S3 with the Wio-SX1262 kit (no screen, no GPS)"
-          else
-            BOARD="the Heltec WiFi LoRa 32 V4 R2 (ESP32-S3R2, OLED). Not for the V4-R8"
-          fi
+          case "$FW_ENV" in
+            Xiao_nrf52_repeater)
+              BOARD="the Seeed Studio XIAO nRF52840 with the Wio-SX1262 kit (no screen, no GPS)"
+              HOW="Double-tap the board's reset button so it appears as a USB drive, then drag firmware.uf2 onto it. firmware.zip is the same firmware as an update package for DFU tools."
+              FILES="out/firmware.uf2"; [ -f out/firmware.zip ] && FILES="$FILES out/firmware.zip" ;;
+            Xiao_S3_WIO_repeater)
+              BOARD="the Seeed Studio XIAO ESP32S3 with the Wio-SX1262 kit (no screen, no GPS)"
+              HOW="Download firmware-merged.bin and flash it at https://flasher.meshcore.io (Custom Firmware). firmware.bin is the application-only image for updating an existing install."
+              FILES="out/firmware-merged.bin out/firmware.bin" ;;
+            *)
+              BOARD="the Heltec WiFi LoRa 32 V4 R2 (ESP32-S3R2, OLED). Not for the V4-R8"
+              HOW="Download firmware-merged.bin and flash it at https://flasher.meshcore.io (Custom Firmware). firmware.bin is the application-only image for updating an existing install."
+              FILES="out/firmware-merged.bin out/firmware.bin out/splash_preview.png" ;;
+          esac
           NOTES="LODESTAR mobile-repeater firmware for $BOARD, by FEAR REACTIVE. Alpha test build ($FW_ENV) on MeshCore commit $MC.
 
-          Download firmware-merged.bin and flash it at https://flasher.meshcore.io (Custom Firmware). firmware.bin is the application-only image for updating an existing install. See the README for setup and testing notes."
+          $HOW See the README for setup and testing notes."
           # Always a new release (the tag was checked before the build). If the tag appeared
           # in the meantime this fails rather than overwriting anything.
-          FILES="out/firmware-merged.bin out/firmware.bin"
-          [ "$FW_ENV" = "Xiao_S3_WIO_repeater" ] || FILES="$FILES out/splash_preview.png"   # no screen on the XIAO, so no splash to preview
           gh release create "$TAG" $FILES \
             --target "$GITHUB_SHA" --title "LODESTAR $TAG" --notes "$NOTES" --prerelease
