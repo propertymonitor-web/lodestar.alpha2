@@ -1,4 +1,4 @@
-name: Build LODESTAR firmware
+name: Build LODESTAR PULSAR firmware
 
 run-name: "${{ github.event_name == 'workflow_dispatch' && format('LODESTAR: {0} / {1} / {2} ({3})', inputs.line1, inputs.line2, inputs.line3, inputs.env) || 'LODESTAR checks' }}"
 
@@ -14,7 +14,7 @@ on:
     inputs:
       line1:
         description: "Splash line 1 (big). Type - to leave out"
-        default: "LODESTAR"
+        default: "LODESTAR PULSAR"
         required: false
         type: string
       line2:
@@ -48,7 +48,7 @@ on:
         required: false
         type: boolean
       release_tag:
-        description: "NEW release tag, e.g. v0.2.0-alpha. Required when publishing; it must not exist yet"
+        description: "NEW release tag, e.g. v0.2.0-beta. Required when publishing; it must not exist yet"
         default: ""
         required: false
         type: string
@@ -104,7 +104,7 @@ jobs:
           TAG: ${{ inputs.release_tag }}
         run: |
           if [ -z "$TAG" ]; then
-            echo "::error::Publishing needs a release tag. Type a NEW one, for example v0.2.0-alpha."
+            echo "::error::Publishing needs a release tag. Type a NEW one, for example v0.2.0-beta."
             exit 1
           fi
           if gh release view "$TAG" >/dev/null 2>&1; then
@@ -209,10 +209,10 @@ jobs:
               HOW="Download firmware-merged.bin and flash it at https://flasher.meshcore.io (Custom Firmware). firmware.bin is the application-only image for updating an existing install."
               FILES="out/firmware-merged.bin out/firmware.bin out/splash_preview.png" ;;
           esac
-          NOTES="LODESTAR mobile-repeater firmware for $BOARD, by FEAR REACTIVE. Alpha test build ($FW_ENV) on MeshCore commit $MC.
+          NOTES="LODESTAR PULSAR mobile-repeater firmware for $BOARD, by FEAR REACTIVE. Beta test build ($FW_ENV) on MeshCore commit $MC.
 
           $HOW See the README for setup and testing notes."
           # Always a new release (the tag was checked before the build). If the tag appeared
           # in the meantime this fails rather than overwriting anything.
           gh release create "$TAG" $FILES \
-            --target "$GITHUB_SHA" --title "LODESTAR $TAG" --notes "$NOTES" --prerelease
+            --target "$GITHUB_SHA" --title "LODESTAR PULSAR $TAG" --notes "$NOTES" --prerelease

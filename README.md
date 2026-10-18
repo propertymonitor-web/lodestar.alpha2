@@ -1,8 +1,8 @@
-# LODESTAR
+# LODESTAR PULSAR
 
 ### Mobile-repeater firmware for MeshCore, by FEAR REACTIVE
 
-**Version v0.1.0-alpha** (alpha test release). **Boards:** Heltec WiFi LoRa 32 **V4 R2** (with screen) and Seeed Studio **XIAO ESP32S3 + Wio-SX1262 kit** (no screen). See [supported boards](#supported-boards).
+**LODESTAR PULSAR** is the repeater in the LODESTAR family (the companion is [LODESTAR NOVA](https://github.com/propertymonitor-web/lodestar_nova_alpha); the solar repeater, LODESTAR HELIOS, is in development on the SenseCAP Solar Node P1-Pro). **Status: beta testing.** **Boards:** Heltec WiFi LoRa 32 **V4 R2** (with screen) and Seeed Studio **XIAO ESP32S3 + Wio-SX1262 kit** (no screen). See [supported boards](#supported-boards).
 
 A repeater that is moving needs to think differently from one bolted to a tower. The tower never changes its neighbours. A vehicle, a hiker, or a boat is constantly gaining and losing them. LODESTAR is MeshCore repeater firmware with a built-in sense of *which repeaters around it are actually worth relying on right now*, and it uses that to forward traffic more intelligently.
 
@@ -25,9 +25,9 @@ It is free, open, and built for the **Heltec WiFi LoRa 32 V4 R2** (ESP32-S3R2, O
 | Board | Build name | Screen | GPS | Notes |
 |---|---|---|---|---|
 | Heltec WiFi LoRa 32 **V4 R2** | `heltec_v4_repeater` | 128x64 OLED with the LODESTAR splash | Optional (`gps on`) | The main target. Not for the V4-R8 |
-| Seeed Studio **SenseCAP Solar Node P1-Pro** (for MeshCore) | `SenseCap_Solar_repeater` | None | Built in (L76K); off until `gps on` | New, **alpha, not yet run on a real board by the author**. Solar-powered repeater hardware. Flash a `.uf2`: double-tap RST so a USB drive appears (Xiao-Boot or Solar Node), drag `firmware.uf2` onto it, and see [Seeed's guide](https://wiki.seeedstudio.com/get_started_with_meshcore_solar_node/) for its erase step. Do not power it off while it is transmitting or being configured |
-| Seeed Studio **XIAO nRF52840 + Wio-SX1262 kit** | `Xiao_nrf52_repeater` | None | None | New, **alpha, not yet run on a real board by the author**. Flash a `.uf2`: double-tap the reset button so a USB drive appears, then drag `firmware.uf2` onto it. Settings persist across updates the same way |
-| Seeed Studio **XIAO ESP32S3 + Wio-SX1262 kit** | `Xiao_S3_WIO_repeater` | None | None (MeshCore does not enable GPS on this board) | New, **alpha, not yet run on a real board by the author**. Everything is done from the serial console or the MeshCore app |
+| Seeed Studio **SenseCAP Solar Node P1-Pro** (for MeshCore) | `SenseCap_Solar_repeater` | None | Built in (L76K); off until `gps on` | New, **beta, not yet run on a real board by the author**. Solar-powered repeater hardware. Flash a `.uf2`: double-tap RST so a USB drive appears (Xiao-Boot or Solar Node), drag `firmware.uf2` onto it, and see [Seeed's guide](https://wiki.seeedstudio.com/get_started_with_meshcore_solar_node/) for its erase step. Do not power it off while it is transmitting or being configured |
+| Seeed Studio **XIAO nRF52840 + Wio-SX1262 kit** | `Xiao_nrf52_repeater` | None | None | New, **beta, not yet run on a real board by the author**. Flash a `.uf2`: double-tap the reset button so a USB drive appears, then drag `firmware.uf2` onto it. Settings persist across updates the same way |
+| Seeed Studio **XIAO ESP32S3 + Wio-SX1262 kit** | `Xiao_S3_WIO_repeater` | None | None (MeshCore does not enable GPS on this board) | New, **beta, not yet run on a real board by the author**. Everything is done from the serial console or the MeshCore app |
 
 **On either XIAO:** LODESTAR's scoring, settings and `lodestar` commands work exactly as on the Heltec. Differences: there is no screen, so the splash options in the build form do nothing and no splash preview is attached; there is no GPS, so `lodestar gps` reports no fix (LODESTAR does not need one); and you read the table from the serial console (115200 baud) or by logging in to the repeater from the MeshCore app. To flash it, plug it in with a USB data cable, then hold **BOOT**, tap **RESET**, release **BOOT** if the flasher cannot see the board, and use the same [web flasher](#flashing-with-the-meshcore-web-flasher) with `firmware-merged.bin`. Attach the antenna to the Wio-SX1262 before powering it. The default admin password is `password`: change it first.
 
@@ -54,12 +54,12 @@ It is free, open, and built for the **Heltec WiFi LoRa 32 V4 R2** (ESP32-S3R2, O
 - **Safe fallback.** No usable uplink in range? LODESTAR behaves exactly like the stock MeshCore repeater.
 - **Built-in table.** One serial command, `lodestar`, shows you what the node sees.
 - **Knows where it is.** LODESTAR tracks its own fix, speed and heading (`lodestar gps`). For now this is display only: no forwarding decision uses it yet. GPS is **off until you switch it on** (`gps on`), because some V4 R2 boards ship with a GNSS module and some do not. See [GPS and position](#gps-and-position).
-- **Custom splash.** Boots to a centered LODESTAR / BY / FEAR REACTIVE screen.
+- **Custom splash.** Boots to a centered LODESTAR PULSAR / BY / FEAR REACTIVE screen.
 - **Everything else is stock MeshCore.** Admin login, regions, CLI, OTA, adverts: the repeater you know, plus the brain.
 
 ## Why it makes a good mobile repeater
 
-| Fixed repeater firmware | LODESTAR |
+| Fixed repeater firmware | LODESTAR PULSAR |
 | --- | --- |
 | Treats every neighbour the same, all the time | Ranks neighbours by reliability, signal, and reach, and re-ranks continuously |
 | Forwards on a random timer regardless of position | Best-placed position goes first, weak position yields |
@@ -98,7 +98,7 @@ Other files in a release:
 You need a GitHub account and your own **fork** of this repository (the **Fork** button at the top of the page), because only people with write access to a repo can run its builds.
 
 1. In your fork, open the **Actions** tab, enable workflows if GitHub asks, then choose **Build LODESTAR firmware**.
-2. Click **Run workflow**. The defaults give the LODESTAR / BY / FEAR REACTIVE splash. Change the three text lines or the seconds on screen if you like (type `-` to leave a line blank), then click the green button.
+2. Click **Run workflow**. The defaults give the LODESTAR PULSAR / BY / FEAR REACTIVE splash. Change the three text lines or the seconds on screen if you like (type `-` to leave a line blank), then click the green button.
 3. A build takes about 3 minutes (longer the first time). Refresh the page; a green check means it worked. A red cross means something failed, and the error lines appear on the run's summary page.
 4. Open the finished run and scroll to **Artifacts** at the bottom. Download the zip (you must be signed in) and unzip it. It contains the same files as a release, plus `meshcore_commit.txt` (which MeshCore version it was built on). Artifacts are kept for 90 days.
 
@@ -137,7 +137,7 @@ If upstream MeshCore has changed enough that a patch no longer fits, the script 
 **3. Set the boot splash.** Up to three text lines (use `-` for a blank line), the seconds it stays on screen, and a preview image to check it:
 
 ```
-python tools/make_splash.py --meshcore MeshCore --line LODESTAR --line BY --line "FEAR REACTIVE" --seconds 5 --preview splash_preview.png
+python tools/make_splash.py --meshcore MeshCore --line "LODESTAR PULSAR" --line BY --line "FEAR REACTIVE" --seconds 5 --preview splash_preview.png
 ```
 
 **4. Build.**
@@ -156,7 +156,7 @@ The finished files are in `MeshCore/.pio/build/heltec_v4_repeater/`: `firmware-m
 3. Choose **Custom Firmware** and select `firmware-merged.bin`.
 4. Click to connect and pick the board's serial port from the browser prompt. (It usually appears as a USB serial or Silicon Labs / Espressif device.)
 5. Start the flash and wait for it to finish. Do not unplug the board while it is writing.
-6. The board reboots. You should see the **LODESTAR / BY / FEAR REACTIVE** splash for 5 seconds, then the normal repeater screen.
+6. The board reboots. You should see the **LODESTAR PULSAR / BY / FEAR REACTIVE** splash for 5 seconds, then the normal repeater screen.
 
 **If the port will not connect:** put the board in **bootloader mode** (Heltec's documented method): with the USB cable connected, hold **PRG**, tap **RST** once, then release **PRG**. Then try again. Holding PRG while plugging in the cable also works on many boards. If it still will not connect, try a different cable or USB port, and see [Troubleshooting](#troubleshooting) for operating-system notes. When the flash finishes, press **RST** (or unplug and replug) to restart the board.
 
@@ -273,7 +273,7 @@ pos 32.751485,-97.330000 sats 9 fix age 1s speed 15.0 m/s course 0
 
 If you are one of the people helping to test LODESTAR, here is what is most useful to learn:
 
-1. Does it flash cleanly, and does the splash show **LODESTAR / BY / FEAR REACTIVE**?
+1. Does it flash cleanly, and does the splash show **LODESTAR PULSAR / BY / FEAR REACTIVE**?
 2. Does `lodestar` list the repeaters you know are nearby after about 10 minutes?
 3. Drive a route. Do the `*` best-uplink marks follow the repeaters you would expect, and does it switch without flapping?
 4. Do the numbers look sensible? For example, is a repeater you can barely hear ranked low?
