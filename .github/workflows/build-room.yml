@@ -1,0 +1,128 @@
+name: Build LODESTAR HEARTH room server
+
+run-name: "LODESTAR HEARTH ROOM SERVER: ${{ inputs.advert_name }}"
+
+# Manual only ("Run workflow"). The room server is stock MeshCore room-server firmware for the
+# Seeed XIAO ESP32S3 + Wio-SX1262 kit, built with LODESTAR HEARTH's name and your own passwords.
+# It does NOT contain the PULSAR scoring patch: a room server is a message board, not a repeater.
+on:
+  workflow_dispatch:
+    inputs:
+      advert_name:
+        description: "Name the room server shows on the mesh (max 31 characters)"
+        default: "LODESTAR HEARTH"
+        required: true
+        type: string
+      admin_password:
+        description: "ADMIN password (remote setup). CHANGE THIS; the default is public knowledge"
+        default: "password"
+        required: true
+        type: string
+      room_password:
+        description: "Room (guest) password people type to join. Leave 'hello' for a public room"
+        default: "hello"
+        required: true
+        type: string
+      publish:
+        description: "Publish the result as a GitHub Release anyone can download (do NOT publish with private passwords)"
+        default: false
+        required: false
+        type: boolean
+      release_tag:
+        description: "NEW release tag, e.g. hearth-beta1. Required when publishing; it must not exist yet"
+        default: ""
+        required: false
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build room server
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check the inputs
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NAME: ${{ inputs.advert_name }}
+          ADMIN: ${{ inputs.admin_password }}
+          ROOM: ${{ inputs.room_password }}
+          TAG: ${{ inputs.release_tag }}
+        run: |
+          for v in "$NAME" "$ADMIN" "$ROOM"; do
+            case "$v" in *\"*|*\\*|*\'*|"") echo "::error::Name and passwords must be filled in and must not contain quotes or backslashes."; exit 1;; esac
+          done
+          [ ${#NAME} -le 31 ] || { echo "::error::The name is too long (max 31 characters)."; exit 1; }
+          [ ${#ADMIN} -le 15 ] && [ ${#ROOM} -le 15 ] || { echo "::error::Passwords can be at most 15 characters."; exit 1; }
+          if [ "${{ inputs.publish }}" = "true" ]; then
+            [ -n "$TAG" ] || { echo "::error::Publishing needs a NEW release tag."; exit 1; }
+            if gh release view "$TAG" >/dev/null 2>&1; then echo "::error::Release $TAG already exists."; exit 1; fi
+            if [ "$ADMIN" != "password" ]; then echo "::error::Do not publish a build that holds your private admin password. Download it from the run instead."; exit 1; fi
+          fi
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install PlatformIO
+        run: pip install platformio
+
+      - name: Get MeshCore
+        run: git clone --depth 1 https://github.com/meshcore-dev/MeshCore.git
+
+      - name: Set name and passwords
+        env:
+          NAME: ${{ inputs.advert_name }}
+          ADMIN: ${{ inputs.admin_password }}
+          ROOM: ${{ inputs.room_password }}
+        run: |
+          python3 - <<'PY'
+          import os, re
+          p = "MeshCore/variants/xiao_s3_wio/platformio.ini"
+          s = open(p).read()
+          m = re.search(r"\[env:Xiao_S3_WIO_room_server\].*?(?=\n\[env:|\Z)", s, re.S)
+          if not m: raise SystemExit("room server env not found in MeshCore")
+          blk = m.group(0)
+          for key, val in (("ADVERT_NAME", os.environ["NAME"]), ("ADMIN_PASSWORD", os.environ["ADMIN"]), ("ROOM_PASSWORD", os.environ["ROOM"])):
+              blk, n = re.subn(r"(-D %s=')\"[^\"]*\"(')" % key, lambda mm: mm.group(1) + '"' + val + '"' + mm.group(2), blk)
+              if n != 1: raise SystemExit("could not set " + key)
+          open(p, "w").write(s[:m.start()] + blk + s[m.end():])
+          PY
+
+      - name: Build firmware
+        working-directory: MeshCore
+        run: |
+          set -o pipefail
+          pio run -t mergebin -e Xiao_S3_WIO_room_server 2>&1 | tee ../build.log
+
+      - name: Show compile errors
+        if: failure()
+        run: grep -E "error|undefined reference|No such file" build.log | head -25 | while IFS= read -r l; do echo "::error::${l:0:900}"; done
+
+      - name: Collect files
+        run: |
+          mkdir out
+          cp MeshCore/.pio/build/Xiao_S3_WIO_room_server/firmware-merged.bin out/
+          cp MeshCore/.pio/build/Xiao_S3_WIO_room_server/firmware.bin out/
+          git -C MeshCore rev-parse HEAD > out/meshcore_commit.txt
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: lodestar-hearth-room-server
+          path: out/
+
+      - name: Publish release
+        if: ${{ inputs.publish }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.release_tag }}
+        run: |
+          MC=$(cut -c1-10 out/meshcore_commit.txt)
+          NOTES="LODESTAR HEARTH ROOM SERVER for the Seeed Studio XIAO ESP32S3 with the Wio-SX1262 kit (no screen), by FEAR REACTIVE. Beta test build on MeshCore commit $MC. Stock MeshCore room-server firmware with the LODESTAR HEARTH name.
+
+          Default passwords are admin 'password' and room 'hello'. Change the admin password right after flashing. Download firmware-merged.bin and flash it at https://flasher.meshcore.io (Custom Firmware). firmware.bin is the application-only image for updating an existing install."
+          gh release create "$TAG" out/firmware-merged.bin out/firmware.bin \
+            --target "$GITHUB_SHA" --title "LODESTAR HEARTH ROOM SERVER $TAG" --notes "$NOTES" --prerelease
