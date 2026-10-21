@@ -27,6 +27,14 @@ on:
         default: "FEAR REACTIVE"
         required: false
         type: string
+      splash:
+        description: "pulsar = the LODESTAR PULSAR emblem splash. custom = your own text lines (below), no emblem"
+        default: pulsar
+        required: true
+        type: choice
+        options:
+          - pulsar
+          - custom
       seconds:
         description: "How many seconds the splash stays on screen (1-30)"
         default: "5"
@@ -134,11 +142,17 @@ jobs:
           LINE2: ${{ inputs.line2 }}
           LINE3: ${{ inputs.line3 }}
           SPLASH_SECONDS: ${{ inputs.seconds }}
+          SPLASH_STYLE: ${{ inputs.splash }}
         run: |
-          python tools/make_splash.py --meshcore MeshCore \
-            --line "$LINE1" --line "$LINE2" --line "$LINE3" \
-            --logo "-" --seconds "$SPLASH_SECONDS" \
-            --preview splash_preview.png
+          if [ "$SPLASH_STYLE" = "pulsar" ]; then
+            python tools/make_splash.py --meshcore MeshCore --preset pulsar \
+              --seconds "$SPLASH_SECONDS" --preview splash_preview.png
+          else
+            python tools/make_splash.py --meshcore MeshCore \
+              --line "$LINE1" --line "$LINE2" --line "$LINE3" \
+              --logo "-" --seconds "$SPLASH_SECONDS" \
+              --preview splash_preview.png
+          fi
 
       - name: Build firmware
         working-directory: MeshCore

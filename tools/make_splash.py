@@ -93,6 +93,31 @@ def header_text(bits):
     return "\n".join(out) + "\n"
 
 
+# -------------------------------------------------------------- presets --
+PRESETS = {"pulsar": ("PULSAR", "Repeater"), "hearth": ("HEARTH", "Room Server")}
+
+
+def preset_splash(a):
+    """The LODESTAR look: emblem on the left; LODESTAR / NAME / role / FEAR REACTIVE on the right."""
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    import lodestar_art
+    name, role = PRESETS[a.preset]
+    bits = np.array(lodestar_art.logo(a.preset)) > 0          # (60, 40) bool, True = lit
+    lh, lw = bits.shape
+    left = 2 + lw + 4
+    mid = left + (SCREEN_W - left) // 2
+    ops = [("logo", 2, (SCREEN_H - lh) // 2), ("text", 1, mid, 4, "LODESTAR"), ("text", 2, mid, 14, name),
+           ("text", 1, mid, 36, role), ("text", 1, mid, 48, "FEAR REACTIVE")]
+    with open(os.path.join(a.meshcore, "src/helpers/ui/splash_logo.h"), "w") as f:
+        f.write(header_text(bits))
+    patch_files(a.meshcore, ops, False, a.seconds, True)
+    render_preview(a.preview, ops, False, bits)
+    summary = f"preset={a.preset} ({name}, {role}) seconds={a.seconds:g}"
+    print(f"Splash ready: {summary}. Preview: {a.preview}")
+    if os.environ.get("GITHUB_ACTIONS"):
+        print(f"::notice title=Splash settings::{summary}")
+
+
 # --------------------------------------------------------------- layout --
 def layout(lines, logo_bits):
     """Return (ops, border). ops are ('logo',x,y) or ('text',size,cx,y,str)."""
@@ -242,8 +267,12 @@ def main():
     ap.add_argument("--threshold", type=float, default=20,
                     help="1-99; lower = bolder logo (default 20)")
     ap.add_argument("--preview", default="splash_preview.png")
+    ap.add_argument("--preset", default="", choices=["", "pulsar", "hearth"],
+                    help="ready-made LODESTAR splash with its own emblem (ignores --line and --logo)")
     a = ap.parse_args()
 
+    if a.preset:
+        return preset_splash(a)
     lines = [l.strip() for l in a.line if l and l.strip() not in ("", "-")]
     if len(lines) > 3:
         die("At most 3 lines of text are supported.")

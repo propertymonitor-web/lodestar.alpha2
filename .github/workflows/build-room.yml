@@ -68,7 +68,7 @@ jobs:
           python-version: "3.11"
 
       - name: Install PlatformIO
-        run: pip install platformio
+        run: pip install platformio pillow numpy
 
       - name: Get MeshCore
         run: git clone --depth 1 https://github.com/meshcore-dev/MeshCore.git
@@ -91,6 +91,10 @@ jobs:
               if n != 1: raise SystemExit("could not set " + key)
           open(p, "w").write(s[:m.start()] + blk + s[m.end():])
           PY
+
+      # The XIAO ESP32S3 kit has no screen, so this splash only shows if someone fits an OLED. It costs nothing otherwise.
+      - name: HEARTH boot splash
+        run: python tools/make_splash.py --meshcore MeshCore --preset hearth --seconds 5 --preview splash_preview.png
 
       - name: Build firmware
         working-directory: MeshCore
