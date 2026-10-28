@@ -98,7 +98,7 @@ PRESETS = {"pulsar": ("PULSAR", "Repeater"), "hearth": ("HEARTH", "Room Server")
 
 
 def preset_splash(a):
-    """The LODESTAR look: emblem on the left; LODESTAR / NAME / role / FEAR REACTIVE on the right."""
+    """The LODESTAR look: emblem on the left; LODESTAR / NAME / role / Wolf Reactive Systems (WRS) on the right."""
     sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
     import lodestar_art
     name, role = PRESETS[a.preset]
@@ -107,7 +107,7 @@ def preset_splash(a):
     left = 2 + lw + 4
     mid = left + (SCREEN_W - left) // 2
     ops = [("logo", 2, (SCREEN_H - lh) // 2), ("text", 1, mid, 4, "LODESTAR"), ("text", 2, mid, 14, name),
-           ("text", 1, mid, 36, role), ("text", 1, mid, 48, "FEAR REACTIVE")]
+           ("text", 1, mid, 36, role), ("text", 1, mid, 48, "WRS")]
     with open(os.path.join(a.meshcore, "src/helpers/ui/splash_logo.h"), "w") as f:
         f.write(header_text(bits))
     patch_files(a.meshcore, ops, False, a.seconds, True)

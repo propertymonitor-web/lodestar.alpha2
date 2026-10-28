@@ -125,7 +125,7 @@ jobs:
           TAG: ${{ inputs.release_tag }}
         run: |
           MC=$(cut -c1-10 out/meshcore_commit.txt)
-          NOTES="LODESTAR HEARTH ROOM SERVER for the Seeed Studio XIAO ESP32S3 with the Wio-SX1262 kit (no screen), by FEAR REACTIVE. Beta test build on MeshCore commit $MC. Stock MeshCore room-server firmware with the LODESTAR HEARTH name.
+          NOTES="LODESTAR HEARTH ROOM SERVER for the Seeed Studio XIAO ESP32S3 with the Wio-SX1262 kit (no screen), by Wolf Reactive Systems (WRS). Beta test build on MeshCore commit $MC. Stock MeshCore room-server firmware with the LODESTAR HEARTH name.
 
           Default passwords are admin 'password' and room 'hello'. Change the admin password right after flashing. Download firmware-merged.bin and flash it at https://flasher.meshcore.io (Custom Firmware). firmware.bin is the application-only image for updating an existing install."
           gh release create "$TAG" out/firmware-merged.bin out/firmware.bin \

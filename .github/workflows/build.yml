@@ -24,7 +24,7 @@ on:
         type: string
       line3:
         description: "Splash line 3. Type - to leave out"
-        default: "FEAR REACTIVE"
+        default: "WRS"
         required: false
         type: string
       splash:
@@ -223,7 +223,7 @@ jobs:
               HOW="Download firmware-merged.bin and flash it at https://flasher.meshcore.io (Custom Firmware). firmware.bin is the application-only image for updating an existing install."
               FILES="out/firmware-merged.bin out/firmware.bin out/splash_preview.png" ;;
           esac
-          NOTES="LODESTAR PULSAR mobile-repeater firmware for $BOARD, by FEAR REACTIVE. Beta test build ($FW_ENV) on MeshCore commit $MC.
+          NOTES="LODESTAR PULSAR mobile-repeater firmware for $BOARD, by Wolf Reactive Systems (WRS). Beta test build ($FW_ENV) on MeshCore commit $MC.
 
           $HOW See the README for setup and testing notes."
           # Always a new release (the tag was checked before the build). If the tag appeared

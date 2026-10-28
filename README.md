@@ -1,6 +1,6 @@
 # LODESTAR PULSAR
 
-### Mobile-repeater firmware for MeshCore, by FEAR REACTIVE
+### Mobile-repeater firmware for MeshCore, by Wolf Reactive Systems (WRS)
 
 **LODESTAR PULSAR** is the repeater in the LODESTAR family (the companion is [LODESTAR NOVA](https://github.com/propertymonitor-web/lodestar_nova_alpha); the solar repeater, LODESTAR HELIOS, is in development on the SenseCAP Solar Node P1-Pro). **Status: beta testing.** **Boards:** Heltec WiFi LoRa 32 **V4 R2** (with screen) and Seeed Studio **XIAO ESP32S3 + Wio-SX1262 kit** (no screen). See [supported boards](#supported-boards).
 
@@ -54,7 +54,7 @@ It is free, open, and built for the **Heltec WiFi LoRa 32 V4 R2** (ESP32-S3R2, O
 - **Safe fallback.** No usable uplink in range? LODESTAR behaves exactly like the stock MeshCore repeater.
 - **Built-in table.** One serial command, `lodestar`, shows you what the node sees.
 - **Knows where it is.** LODESTAR tracks its own fix, speed and heading (`lodestar gps`). For now this is display only: no forwarding decision uses it yet. GPS is **off until you switch it on** (`gps on`), because some V4 R2 boards ship with a GNSS module and some do not. See [GPS and position](#gps-and-position).
-- **Custom splash.** Boots to a centered LODESTAR PULSAR / BY / FEAR REACTIVE screen.
+- **Custom splash.** Boots to a centered LODESTAR PULSAR / BY / WRS screen.
 - **Everything else is stock MeshCore.** Admin login, regions, CLI, OTA, adverts: the repeater you know, plus the brain.
 
 ## Why it makes a good mobile repeater
@@ -98,7 +98,7 @@ Other files in a release:
 You need a GitHub account and your own **fork** of this repository (the **Fork** button at the top of the page), because only people with write access to a repo can run its builds.
 
 1. In your fork, open the **Actions** tab, enable workflows if GitHub asks, then choose **Build LODESTAR firmware**.
-2. Click **Run workflow**. The defaults give the LODESTAR PULSAR / BY / FEAR REACTIVE splash. Change the three text lines or the seconds on screen if you like (type `-` to leave a line blank), then click the green button.
+2. Click **Run workflow**. The defaults give the LODESTAR PULSAR / BY / WRS splash. Change the three text lines or the seconds on screen if you like (type `-` to leave a line blank), then click the green button.
 3. A build takes about 3 minutes (longer the first time). Refresh the page; a green check means it worked. A red cross means something failed, and the error lines appear on the run's summary page.
 4. Open the finished run and scroll to **Artifacts** at the bottom. Download the zip (you must be signed in) and unzip it. It contains the same files as a release, plus `meshcore_commit.txt` (which MeshCore version it was built on). Artifacts are kept for 90 days.
 
@@ -137,7 +137,7 @@ If upstream MeshCore has changed enough that a patch no longer fits, the script 
 **3. Set the boot splash.** Up to three text lines (use `-` for a blank line), the seconds it stays on screen, and a preview image to check it:
 
 ```
-python tools/make_splash.py --meshcore MeshCore --line "LODESTAR PULSAR" --line BY --line "FEAR REACTIVE" --seconds 5 --preview splash_preview.png
+python tools/make_splash.py --meshcore MeshCore --line "LODESTAR PULSAR" --line BY --line "WRS" --seconds 5 --preview splash_preview.png
 ```
 
 **4. Build.**
@@ -156,7 +156,7 @@ The finished files are in `MeshCore/.pio/build/heltec_v4_repeater/`: `firmware-m
 3. Choose **Custom Firmware** and select `firmware-merged.bin`.
 4. Click to connect and pick the board's serial port from the browser prompt. (It usually appears as a USB serial or Silicon Labs / Espressif device.)
 5. Start the flash and wait for it to finish. Do not unplug the board while it is writing.
-6. The board reboots. You should see the **LODESTAR PULSAR / BY / FEAR REACTIVE** splash for 5 seconds, then the normal repeater screen.
+6. The board reboots. You should see the **LODESTAR PULSAR / BY / WRS** splash for 5 seconds, then the normal repeater screen.
 
 **If the port will not connect:** put the board in **bootloader mode** (Heltec's documented method): with the USB cable connected, hold **PRG**, tap **RST** once, then release **PRG**. Then try again. Holding PRG while plugging in the cable also works on many boards. If it still will not connect, try a different cable or USB port, and see [Troubleshooting](#troubleshooting) for operating-system notes. When the flash finishes, press **RST** (or unplug and replug) to restart the board.
 
@@ -273,7 +273,7 @@ pos 32.751485,-97.330000 sats 9 fix age 1s speed 15.0 m/s course 0
 
 If you are one of the people helping to test LODESTAR, here is what is most useful to learn:
 
-1. Does it flash cleanly, and does the splash show **LODESTAR PULSAR / BY / FEAR REACTIVE**?
+1. Does it flash cleanly, and does the splash show **LODESTAR PULSAR / BY / WRS**?
 2. Does `lodestar` list the repeaters you know are nearby after about 10 minutes?
 3. Drive a route. Do the `*` best-uplink marks follow the repeaters you would expect, and does it switch without flapping?
 4. Do the numbers look sensible? For example, is a repeater you can barely hear ranked low?
@@ -324,8 +324,8 @@ Please note your radio settings, spreading factor, location type (city, rural, h
 
 ## Credits and responsibility
 
-LODESTAR is built on **MeshCore**, an open-source project; please see the MeshCore repository for its license terms and documentation. LODESTAR is a community give-away from FEAR REACTIVE, provided as is, with no warranty.
+LODESTAR is built on **MeshCore**, an open-source project; please see the MeshCore repository for its license terms and documentation. LODESTAR is a community give-away from Wolf Reactive Systems (WRS), provided as is, with no warranty.
 
 Builds are not byte-for-byte reproducible: each build uses the newest MeshCore at that moment, and `meshcore_commit.txt` records which one. Transmit only where and how your local regulations allow (frequency, power, duty cycle; the V4's transmit power setting is not the same number as the power at the antenna), and follow your local mesh community's norms before adding a repeater to a shared network. An experimental repeater can disturb a mesh if it misbehaves, so test privately first.
 
-**LODESTAR by FEAR REACTIVE**
+**LODESTAR by Wolf Reactive Systems (WRS)**
