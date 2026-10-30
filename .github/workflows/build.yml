@@ -90,7 +90,7 @@ jobs:
         run: git clone --depth 1 https://github.com/meshcore-dev/MeshCore.git
 
       - name: Apply Lodestar
-        run: python tools/apply_lodestar.py --meshcore MeshCore
+        run: python tools/apply_lodestar.py --meshcore MeshCore && python tools/persist_ble_pin.py --meshcore MeshCore
 
   build:
     name: Build firmware
@@ -134,7 +134,7 @@ jobs:
         run: git clone --depth 1 https://github.com/meshcore-dev/MeshCore.git
 
       - name: Apply Lodestar
-        run: python tools/apply_lodestar.py --meshcore MeshCore
+        run: python tools/apply_lodestar.py --meshcore MeshCore && python tools/persist_ble_pin.py --meshcore MeshCore
 
       - name: Generate splash
         env:
