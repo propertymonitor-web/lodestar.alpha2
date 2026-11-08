@@ -461,6 +461,7 @@ $("btnUpd").onclick = async () => {
 $("dUpdClose").onclick = () => $("dUpd").close();
 
 render(); requestAnimationFrame(drawRadar);
+if (location.hash === "#demo") $("btnDemo").click();
 window.addEventListener("resize", render);
 </script>
 </body>

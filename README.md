@@ -43,7 +43,18 @@ It is free, open, and built for the **Heltec WiFi LoRa 32 V4 R2** (ESP32-S3R2, O
 
 There is one dashboard page for every board in the table above, in the [`dashboards`](dashboards) folder (`pulsar-<board>.html`). Download the one for your board and open it in Chrome or Edge on a computer,. It shows the repeater's name, health, battery, radio settings, traffic, the LODESTAR uplink ranking, a signal radar, neighbours and GPS, and lets you change settings, send an advert and check for updates. **Try sample data** lets you look around without a radio.
 
-- **USB cable** works with every build today. Click **Connect**, pick **USB cable**, then pick the radio's port.
+**How to connect over USB**
+
+1. Plug the repeater into your computer with a USB **data** cable (a charge-only cable will not work).
+2. Open your board's `pulsar-<board>.html` in **Chrome or Edge**. (Firefox and Safari do not support USB serial.)
+3. Click **Connect**, then **USB cable**. The browser shows a list of ports: pick the one for your repeater (it often appears as "USB Serial", "USB JTAG/serial" or the board's name) and click **Connect** in that list.
+4. The status at the top turns green ("Connected: USB serial") and the tiles fill in within a few seconds. They refresh every 5 seconds.
+5. Close any other program that has the repeater open (a serial monitor, the MeshCore flasher page, another copy of the dashboard). Only one program can use the port at a time.
+6. On an **Android phone**, Chrome often cannot see a USB radio. Use the Matrix+MNA Android app's USB support if you have it; a dedicated Pulsar app does not exist yet.
+
+If the port list is empty, try another cable or USB port. On the XIAO ESP32S3, hold BOOT while plugging in only for flashing, not for the dashboard.
+
+- **USB cable** works with every build today (the steps above).
 - **Bluetooth and WiFi** are built into the dashboard, but the current Pulsar repeater firmware does not have a Bluetooth or WiFi command link, so they will not connect yet. The buttons only show on boards that have that hardware.
 - **Radar:** a repeater cannot tell which *direction* a signal came from, so the radar shows signal strength (closer to the centre is stronger) and spreads the blips by ID.
 - **Updates** checks for a newer dashboard and a newer firmware release for your board and links the files. It does not flash by itself.
