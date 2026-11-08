@@ -50,6 +50,7 @@ on:
           - Xiao_S3_WIO_repeater
           - Xiao_nrf52_repeater
           - SenseCap_Solar_repeater
+          - RAK_4631_repeater
       publish:
         description: "Publish the result as a GitHub Release anyone can download"
         default: false
@@ -161,7 +162,7 @@ jobs:
         run: |
           set -o pipefail
           case "$FW_ENV" in
-            *nrf52*|SenseCap_Solar*)
+            *nrf52*|SenseCap_Solar*|RAK_4631*)
               # Nordic boards have no merged image: build, then make the .uf2 the board's bootloader reads
               pio run -e "$FW_ENV" 2>&1 | tee ../build.log
               python3 bin/uf2conv/uf2conv.py ".pio/build/$FW_ENV/firmware.hex" -c -o ".pio/build/$FW_ENV/firmware.uf2" -f 0xADA52840 2>&1 | tee -a ../build.log ;;
@@ -182,7 +183,7 @@ jobs:
         run: |
           mkdir out
           case "$FW_ENV" in
-            *nrf52*|SenseCap_Solar*)
+            *nrf52*|SenseCap_Solar*|RAK_4631*)
               cp "MeshCore/.pio/build/$FW_ENV/firmware.uf2" out/
               cp "MeshCore/.pio/build/$FW_ENV/firmware.zip" out/ 2>/dev/null || true ;;
             *)
@@ -209,6 +210,10 @@ jobs:
             SenseCap_Solar_repeater)
               BOARD="the Seeed Studio SenseCAP Solar Node P1-Pro (nRF52840, solar, battery, GPS)"
               HOW="Double-tap the board's RST button so it appears as a USB drive (named Xiao-Boot or Solar Node), then drag firmware.uf2 onto it. Seeed's guide at https://wiki.seeedstudio.com/get_started_with_meshcore_solar_node/ also describes an erase step. firmware.zip is the same firmware as an update package for DFU tools."
+              FILES="out/firmware.uf2"; [ -f out/firmware.zip ] && FILES="$FILES out/firmware.zip" ;;
+            RAK_4631_repeater)
+              BOARD="the RAK WisBlock Core RAK4631 (nRF52840 + SX1262) on a WisBlock base board such as the RAK19007. Beta, not yet tested on a real board by the makers"
+              HOW="Double-tap the RESET button on the base board so the bootloader shows a USB drive, then drag firmware.uf2 onto it. If your board does not show a drive, firmware.zip is the same firmware as an update package for DFU tools (for example adafruit-nrfutil)."
               FILES="out/firmware.uf2"; [ -f out/firmware.zip ] && FILES="$FILES out/firmware.zip" ;;
             Xiao_nrf52_repeater)
               BOARD="the Seeed Studio XIAO nRF52840 with the Wio-SX1262 kit (no screen, no GPS)"
