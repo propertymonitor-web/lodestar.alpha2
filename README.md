@@ -39,6 +39,18 @@ It is free, open, and built for the **Heltec WiFi LoRa 32 V4 R2** (ESP32-S3R2, O
 
 **On either XIAO:** LODESTAR's scoring, settings and `lodestar` commands work exactly as on the Heltec. Differences: there is no screen, so the splash options in the build form do nothing and no splash preview is attached; there is no GPS, so `lodestar gps` reports no fix (LODESTAR does not need one); and you read the table from the serial console (115200 baud) or by logging in to the repeater from the MeshCore app. To flash it, plug it in with a USB data cable, then hold **BOOT**, tap **RESET**, release **BOOT** if the flasher cannot see the board, and use the same [web flasher](#flashing-with-the-meshcore-web-flasher) with `firmware-merged.bin`. Attach the antenna to the Wio-SX1262 before powering it. The default admin password is `password`: change it first.
 
+## Dashboard
+
+There is one dashboard page for every board in the table above, in the [`dashboards`](dashboards) folder (`pulsar-<board>.html`). Download the one for your board and open it in Chrome or Edge on a computer,. It shows the repeater's name, health, battery, radio settings, traffic, the LODESTAR uplink ranking, a signal radar, neighbours and GPS, and lets you change settings, send an advert and check for updates. **Try sample data** lets you look around without a radio.
+
+- **USB cable** works with every build today. Click **Connect**, pick **USB cable**, then pick the radio's port.
+- **Bluetooth and WiFi** are built into the dashboard, but the current Pulsar repeater firmware does not have a Bluetooth or WiFi command link, so they will not connect yet. The buttons only show on boards that have that hardware.
+- **Radar:** a repeater cannot tell which *direction* a signal came from, so the radar shows signal strength (closer to the centre is stronger) and spreads the blips by ID.
+- **Updates** checks for a newer dashboard and a newer firmware release for your board and links the files. It does not flash by itself.
+- **Not tested on real hardware yet.** The dashboard was tested against a simulated repeater only.
+
+`tools/build_dashboards.py` builds all the pages from `dashboard/pulsar.template.html`.
+
 ## Quick start
 
 1. **Check the board.** A Heltec WiFi LoRa 32 **V4 R2** (see the hardware check above) or a Seeed Studio XIAO ESP32S3 with the Wio-SX1262 kit (see [supported boards](#supported-boards)).
