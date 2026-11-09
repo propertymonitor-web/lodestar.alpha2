@@ -247,7 +247,7 @@ jobs:
               HOW="Double-tap the RESET button so the board shows up as a USB drive, then drag firmware.uf2 onto it. firmware.zip is the same firmware as an update package for DFU tools."
               FILES="out/firmware.uf2"; [ -f out/firmware.zip ] && FILES="$FILES out/firmware.zip" ;;
             RAK_4631_repeater)
-              BOARD="the RAK WisBlock Core RAK4631 (nRF52840 + SX1262) on a WisBlock base board such as the RAK19007. Beta, not yet tested on a real board by the makers"
+              BOARD="the RAK WisBlock Core RAK4631 (nRF52840 + SX1262) on a WisBlock base board such as the RAK19007. Also intended for boards labelled RAK4630 (the module on the RAK4631 core; unconfirmed on a real board), but not for a bare RAK4630 on custom hardware. Beta, not yet tested on a real board by the makers"
               HOW="Double-tap the RESET button on the base board so the bootloader shows a USB drive, then drag firmware.uf2 onto it. If your board does not show a drive, firmware.zip is the same firmware as an update package for DFU tools (for example adafruit-nrfutil)."
               FILES="out/firmware.uf2"; [ -f out/firmware.zip ] && FILES="$FILES out/firmware.zip" ;;
             Xiao_nrf52_repeater)
