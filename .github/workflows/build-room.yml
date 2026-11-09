@@ -60,7 +60,9 @@ jobs:
           if [ "${{ inputs.publish }}" = "true" ]; then
             [ -n "$TAG" ] || { echo "::error::Publishing needs a NEW release tag."; exit 1; }
             if gh release view "$TAG" >/dev/null 2>&1; then echo "::error::Release $TAG already exists."; exit 1; fi
-            if [ "$ADMIN" != "password" ]; then echo "::error::Do not publish a build that holds your private admin password. Download it from the run instead."; exit 1; fi
+            # QC: never publish a build with an admin password baked in. The default 'password' is
+            # public knowledge, and any other value would be public too. Download from the run instead.
+            echo "::error::Publishing is disabled: a public release must not contain an admin password (default 'password' or otherwise). Download firmware from the workflow run and set the admin password after flashing."; exit 1
           fi
 
       - uses: actions/setup-python@v5
