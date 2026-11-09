@@ -41,7 +41,7 @@ It is free, open, and built for the **Heltec WiFi LoRa 32 V4 R2** (ESP32-S3R2, O
 
 ## Dashboard
 
-There is one dashboard page for every board in the table above, in the [`dashboards`](dashboards) folder (`pulsar-<board>.html`). Download the one for your board and open it in Chrome or Edge on a computer,. It shows the repeater's name, health, battery, radio settings, traffic, the LODESTAR uplink ranking, a signal radar, neighbours and GPS, and lets you change settings, send an advert and check for updates. **Try sample data** lets you look around without a radio.
+There is one dashboard page for every board in the table above, in the [`dashboards`](dashboards) folder (`pulsar-<board>.html`). Download the one for your board and open it in Chrome or Edge on a computer. It shows the repeater's name, health, battery, radio settings, traffic, the LODESTAR uplink ranking, a signal radar, neighbours and GPS, and lets you change settings, send an advert and check for updates. **Try sample data** lets you look around without a radio.
 
 **How to connect over USB**
 
@@ -61,6 +61,11 @@ If the port list is empty, try another cable or USB port. On the XIAO ESP32S3, h
 - **Not tested on real hardware yet.** The dashboard was tested against a simulated repeater only.
 
 `tools/build_dashboards.py` builds all the pages from `dashboard/pulsar.template.html`.
+
+## More documentation
+
+- [ARCHITECTURE.md](ARCHITECTURE.md): how PULSAR patches MeshCore, how the scoring works, the build pipeline and the dashboards.
+- [SECURITY.md](SECURITY.md): threat model, what to do before going on air, known weaknesses, and how to report a vulnerability.
 
 ## Quick start
 
